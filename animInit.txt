@@ -1,0 +1,1 @@
+<Anim>"figure";m;j:"figureRightLeg",(0,0,0),(1.0,0.0,0.0);j:"figureLeftLeg",(0,0,0),(1.0,0.0,0.0);j:"figureRightArm",(0,4,0),(1.0,0.0,0.0);j:"figureLeftArm",(0,4,0),(1.0,0.0,0.0);t:"sphereD";t:"sphereC";t:"sphereB";t:"sphereA";

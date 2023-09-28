@@ -1,0 +1,1748 @@
+
+2009151504
+    TODO:   Eine Ebene realisieren und ein Figure darüber laufen lassen.
+
+2009151249
+    TODO:   Die Inputdateien(neben trafoinit.txt,animInit.txt,sceneInit.txt auch "model".txt) sollten auch im Diagramm erläutert werden.
+    
+    
+    
+    
+    
+    
+    
+
+
+2009121136
+    TODO:   Es muss realisiert werden, dass nachdem <Model> linear transformiert wurde, die Animation(der <Joint>s) konsistent fortgeführt wird.
+            Es muss realisiert werden, dass nachdem <Model> rotiert wurde, die Animation(der <Joint>s) konsistent fortgeführt wird.
+
+2109121128
+    NOTE:   Es ist soweit gelöst, dass <Joint> eine Position in Inertialsystem <Model> besitzt
+            Innerhalb Model::rotateJoint() wird jeder Punkt zuerst um <JointPos> linear an Ursprung transformiert;
+            Danach wird dieser Punkt rotiert;
+            Und am Schluß wird der rotierte Punkt um <JointPos> linear zurück transformiert;
+            
+2109111901
+    TODO:   Also müssen in <Anim> die PunktIDs des entspr. Triangles aus <Anim.Model.points> gemerkt werden
+                Also müssen in <Model> die PunktIDs des entspr. Triangles aus <Model.points> gemerkt werden
+                Dann muss <Model.addJoint()> so geändert werden, dass entspr. PunkteIDs als Argument erwarten/verarbeitet werden.
+                Also wird aus std::vector<std::vector<float>>Model::jointsPos ein std::vector<std::vector<float>>Model::jointsPntIdsToCalcPivot
+            Also muss in Start::displayCallback() bevor <Model->rotateJoint()> aufgerufen wird, der virtuelle (Dreh-)Punkt interpoliert werden
+            Also muss Model::rotateJoint() einen Parameter erwarten, um den Drehpunkt/jointsPos zu beschreiben.
+            Das wiederum macht std::vector<std::vector<float>>Model::jointsPos überflüssig.
+
+2109111759
+    NOTE:   Ein Weg wurde gefunden, um den Mittelpunkt eines Triangles zu bestimmen
+             Dadurch kann man einen virtuellen Punkt referenzieren der sich in der Mitte von 3 physischen Punkten befindet
+              Der Vorteil ist, dass dieser virtuelle Punkt immer korrekt tranformiert ist und
+                               dass kein weiterer Speicherbedarf existiert außer dem für entspr. PunktIDs.
+              Der Nachteil ist die Mehrarbeit, dass bei jedem rotateJoint()-Call die Koordinate des virtuellen Punkts erneut interpoliert werden muss.
+
+2109111720
+                    x         y       z
+        PntA:   (1.20366,0.378717,-3.58787)
+        PntB:   (1.09738,-0.170475,-3.51821)
+        PntC:   (1.14355,-0.259744,-4.25895)
+        
+        Mitte PntA:PntB
+            ((1.20366+1.09738)/2,(0.378717-0.170475)/2,(-3.58787-3.51821)/2)        // Mitte PntA:PntB
+            -> (1.15052, 0.104121, -3.55304)
+        Mitte (PntA:PntB):PntC
+            ((1.15052+1.14355)/2, (0.104121-0.259744)/2, (-3.55304-4.25895)/2)      // Mitte (Mitte PntA:PntB):PntC
+            -> (1.147035, -0.0778115, -3.905995)
+            
+        ODER
+            <Drehpunkt> wird für jede Rotation neu gemittelt:
+                Mitte PntA:PntB
+                    = (1.20366,0.378717,-3.58787)+(1/2)*PntANachPntB                                        // PntANachPntB := PntB-PntA
+                    = (1.20366,0.378717,-3.58787)+(1/2)*((1.09738,-0.170475,-3.51821)-(1.20366,0.378717,-3.58787))
+                    = (1.20366,0.378717,-3.58787)+(1/2)*(-0.10628,-0.549192,0.06966)
+                    = (1.20366,0.378717,-3.58787)+(-0.05314,-0.274596,0.03483)
+                    = (1.15052, 0.104121, -3.55304)
+                    
+                Mitte (Mitte PntA:PntB):PntC
+                    = (Mitte PntA:PntB)+(1/2)*(Mitte PntA:PntB)NachPntC                                     //(Mitte PntA:PntB)NachPntC := PntC-Mitte PntA:PntB
+                    = (1.15052, 0.104121, -3.55304)+(1/2)*((1.14355,-0.259744,-4.25895)-(1.15052, 0.104121, -3.55304))
+                    = (1.15052, 0.104121, -3.55304)+(1/2)*(-0.00697,-0.363865,-0.70591)
+                    = (1.15052, 0.104121, -3.55304)+(-0.003485,-0.1819325,-0.352955)
+                    = (1.147035, -0.0778115, -3.905995)
+                        
+2109111655
+                    x         y       z
+        PntA:   (-1.20366,0.378717,-3.58787)
+        PntB:   (-1.09738,-0.170475,-3.51821)
+        PntC:   (-1.14355,-0.259744,-4.25895)
+        
+        Mitte PntA:PntB
+            ((-1.20366-1.09738)/2,(0.378717-0.170475)/2,(-3.58787-3.51821)/2)        // Mitte PntA:PntB
+            -> (-1.15052, 0.104121, -3.55304)
+        Mitte (PntA:PntB):PntC
+            ((-1.15052-1.14355)/2, (0.104121-0.259744)/2, (-3.55304-4.25895)/2)      // Mitte (Mitte PntA:PntB):PntC
+            -> (-1.147035, -0.0778115, -3.905995)
+                        
+
+2109101239
+    NOTE
+        Es ist nicht nötig extra einen Drehpunkt zu definieren/initialisieren und entspr. der Kameraführung zu transformieren,
+        ein Drehpunkt lässt sich auch aus 3 ausgewählten Punkten des <ModelMeshs> ableiten.
+        Die 3 definierten Punkte müssen so gewählt werden,dass <Drehpunkt> in ihrer Mitte ist.
+                    x         y       z
+        PntA:   (1.20366,-0.378717,3.58787)
+        PntB:   (1.09738,0.170475,3.51821)
+        PntC:   (1.14355,0.259744,4.25895)
+
+        Es scheint so als wären Koordinaten in <Model>
+
+        pnt:model.txt
+        x:=x(in <Model> eine Nachkommastelle präziser als in <Blenderfile>)
+        y:=-z
+        z=y
+
+                => PntC:   (1.14355,0.259744,4.25895)   --> 1.143553,4.258951,-0.259744
+
+        -> Es werden nur 5 Nachkommastellen abgeglichen (wenn das Vorzeichenbit nicht gebaucht wird, wird es als Wert verwendet)
+
+
+        ALSO:       INITIAL
+                        <Model.points[i][c]> iterieren
+                            Jedes i wird mit definierten Punkten verglichen um die ID der definierten Punkte ausfindig zu machen
+                    PRO <Model.rotateJoint(float,unsigned int)> -CALL
+                            Im weiteren Verlauf wird der Mittelpunkt der 3 definierten Punkte als <Drehpunkt> angenommen,
+                            <Drehpunkt> wird für jede Rotation neu gemittelt:
+                                Mitte PntA:PntB
+                                    ((1.20366+1.09738)/2,(-0.378717+0.170475)/2,(3.58787+3.51821)/2)        // Mitte PntA:PntB
+                                    -> (1.15052, -0.104121, 3.55304)
+                                Mitte (PntA:PntB):PntC
+                                    ((1.15052+1.14355)/2, (-0.104121+0.259744)/2, (3.55304+4.25895)/2)      // Mitte (Mitte PntA:PntB):PntC
+                                    -> (1.147035, 0.0778115, 3.905995)
+                        
+                        https://www.youtube.com/watch?v=G_HV3rDem_o
+                    ODER
+                            <Drehpunkt> wird für jede Rotation neu gemittelt:
+                                Mitte PntA:PntB
+                                    = (1.20366,-0.378717,3.58787)+(1/2)*PntANachPntB                                        // PntANachPntB := PntB-PntA
+                                    = (1.20366,-0.378717,3.58787)+(1/2)*(1.09738-1.20366,0.170475+0.378717,3.51821-3.58787)
+                                    = (1.20366,-0.378717,3.58787)+(1/2)*(-0.10628,0.549192,-0.06966)
+                                    = (1.20366,-0.378717,3.58787)+(-0.05314,0.274596,-0.03483)
+                                    = (1.15052, -0.104121, 3.55304)
+                                Mitte (Mitte PntA:PntB):PntC
+                                    = (1.15052, -0.104121, 3.55304)+(1/2)*(Mitte PntA:PntB)NachPntC          //(Mitte PntA:PntB)NachPntC := PntC-Mitte PntA:PntB
+                                    = (1.15052, -0.104121, 3.55304)+(1/2)*((1.14355,0.259744,4.25895)-(1.15052, -0.104121, 3.55304))
+                                    = (1.15052, -0.104121, 3.55304)+(1/2)*(-0.00697,0.363865,0.70591)
+                                    = (1.15052, -0.104121, 3.55304)+(-0.003485,0.1819325,0.352955)
+                                    = (1.147035,0.0778115,3.905995)
+2109091929
+    NOTE:   In <Tranformationen::rotate (const float alpha,const char axis,Model*m,std::vector<float>*um)
+            werden zuletzt noch <jointsPos> entspr. <Model>s rotiert 
+
+2109062026
+    TODO:   Wenn die Kamera gedreht wird, verhält sich der rotierende <ModelPart> inkonsistent und wird verformt.
+            Das liegt vermutlich daran, dass der Drehpunkt statisch definiert ist und sich nie ändert.
+
+2109061955
+    TODO:   Ziel ist aus animInit.txt das 2. Argument des 'j'-Parameters einzulesen und als <Drehpunkt> weiter wie unten(2109061228) beschrieben zu verarbeiten.
+    
+2109061949
+    NOTE:   In der ersten Version ist deulich zu erkennen, 
+            dass der Arm um den inertialen Ursprung rotiert.
+
+2109061228
+    NOTE:   Es ist deutlich zu erkennen, dass der linke Arm zwar entlang der korrekten Achse rotiert wird, aber um einen ungünstigen Ursprung.
+    
+            Infolge dessen müssen:
+                - Die Punkte{der entspr. PunktIDs} temporär/für die Rotationstransformation linear transformiert werden;
+                - Und zwar so dass der <Drehpunkt> des ArmGelenks an Ursprung liegt;
+                - Abstand(zwischen <Drehpunkt> des ArmGelenks und Ursprung) um den linear transformiert wird als [dX,dY,dZ] merken;
+                - Hier kann die Rotationstransformation der Punkte{der entspr. PunktIDs} erfolgen;
+                - Zuletzt werden die (rotierten) Punkte{der entspr. PunktIDs} zurück linear transformiert um -[dX,dY,dZ];
+
+2109051348
+    NOTE:   Transformation::focussing verhält sich inkonsistent, 
+            jenachdem wie die Kamera rotiert ist passt sich der Winkel um den (hier) <Figure> rotiert wird an
+            bzw. jenachdem wie die Kamera rotiert ist wird <Figure> korrekt/fehlerhaft nach entspr. <Target> ausgerichtet.
+    TODO:   Das muss nachbearbeitet werden, aber zuerst muss Model::rotateJoint() konsistent funktionieren.
+    
+            Dazu bedarf es einer Szene, in der ein <Figure> statisch abgebildet wird,
+                                        welche nicht linear transformiert wird und 
+                                        wessen Gelenke animiert werden.
+
+2109051226
+    TODO:   Ausprobieren in wie weit sich Rotation von Model::rotateJoint() mit welchem Resultat verändern lässt.
+
+2109051213
+    TODO:   Es gilt zu beobachten, ob die Beine inkonsistent rotiert werden, wenn sich <figure> nur linear entlang der X-Axse bewegt.
+            negativ
+
+2109011632
+    In Model::addJoint() wird ausgegeben, welches <ModelPart> zu welchem <Model> gehört und an welcher Position sich entspr. <ModelPart> befindet
+
+        IST:    <ModelPart> wird um den Einheitsvektor der seine Rotationsachse abbildet rotiert
+                Das funktioniert mit <Figure>{<leftLeg>,<rightLeg>} weil <Figure>s Mittelpunkt im Beckenbereich liegt und 
+                die Rotationsachsen von <leftLeg> und <rightLeg> wie die X-Achse liegen.
+                
+        SOLL:   Damit eine Rotation von <ModelPart>s funktioniert, auch wenn ihre Rotationsachsen nicht parallel zur entspr. Achse liegen,
+                - müssen die Punkte entspr. <ModelPart> zuerst um <ModelPart.pos> an Ursprung transformiert werden.
+                - Danach können die Punkte entspr. <ModelPart> rotiert werden.
+                - Um am Ende wieder um <ModelPart.pos> linear zurück transformiert zu werden.
+
+2108301914
+    Rotation der Arme von <Figure>:
+        In animInit.txt wurde dbzgl. ein Vektor angegeben der in Etwa auf die Schulter zeigt.
+        Nicht beachtet wurde, dass dieser Vektor nicht die Position des Drehpunkts markiert, 
+        sondern dass dieser Vektor eine Rotationsache von Ursprung ab an definiert.
+        Der Ursprung von <Figure> liegt im Beckenbereich.
+        
+        Das bedeutet:       Dass zuerst alle Punkte <Model::pntIdsToRotate>(entspr. der Position von <Drehpunkt>) linear transformiert werden müssen, 
+                            so dass sich <Drehpunkt> an Ursprung befindet.
+                            Danach wird die rotierende Transformation durchgeführt.
+                            Danach werden die rotierten Punkte -um Position von <Drehpunkt>- linear zurück-transformiert.
+
+    Es muss eine andere Lösung gefunden werden, um <Figure>s in Richtung ihres <Target> zu rotieren.
+    
+2108291411
+    Model::rotateJoint() funktioniert konsistent.
+    egal wie <Model> bzw. Kamera gedreht ist oder wo <Model> bzw Kamera positioniert ist.
+    Zu überlegen wäre einfach eine Drehung des <Model>s um seine Vertikale bzw. Y-Achse zu realisieren, 
+        indem es per rotateJoint() um seine Y-Achse konsistent rotiert werden kann.
+        Dazu muss es nur ein <Joint> geben, dass für eine Vertikale steht, die zentral im <Model> liegt und 
+        es müssen alle Punkte <Model.points> entspr. <alpha> rotiert werden
+        
+        Dazu muss initial in <Model::Model> dem <Model::n> ein Einheitsvektor der Y-Achse {0,1,0} hinzgefügt werden.
+        Demzufolge muss in Start::displayCallback() bei anim.getModel()->rotateJoint()-Aufrufen die ID um 1 inkrementiert übergeben werden.
+        
+        Anschließend sollte es möglich sein das Model um seine Senkrechte/Vertikale rotieren zu lassen, 
+            indem seine <Model::rotateJoint(<alpha>,0)> aufgerufen wird.
+            
+        Aus irgendwas muss kenntlich gemacht werden, dass sich innerhalb <Model::rotateJoint()> hierbei nicht auf <Model::pntIdsToRotate> sondern absolut auf <Model::points> bezogen werden muss
+        
+        evt zusätzliches Attribut:= bool:isJoint
+
+2108291152
+    die Logik von Model::rotateJoint(const float alpha,const unsigned int id) darf nicht im Verantwortungsbereich von <Model> liegen,
+    sondern muss ausgelagert nach <Transformation> werden!!!
+    IST:    Logik um Teil eines Models zu rotieren findet statt: Model::rotateJoint(const float a,const unsigned int id)
+    SOLL:   <Model> ist laut Design nur ein Kontainer der Informationen,
+            Logische/Funktionale ist getrennt nach <Transformation>
+            
+            --->    Model::rotateJoint(const float a,const unsigned int id) bleibt, 
+                  aber ruft jetzt nur noch:
+                    Transformation::rotateJoint(const float a,std::vector<std::vector<unsigned int>>pntIdsToRotate,std::vector<float> n)
+                  auf
+                  
+            DAS FUNKTIONIERT NICHT: Weil <Model> nicht zu <Transformation> referenziert!!!!!!
+    
+    DONE
+    <Model>s die als <ModelPart> dienen sollten nicht projiziert werden!!!
+        Model::getsProjected wird mit TRUE initialisiert
+        Model::setGetsProjected(bool b) 
+
+2108282041
+    Transformation existiert zu beginn;
+    Transformation impliziert funktionen zum transformieren der virtuellen Welt;
+    --> Transformation muss Vektoren implizieren, die stellvertretend für die Achsen des Koordinatenkreuz' existieren und 
+        bei Kamerarotation auch entspr. rotiert werden.
+        Um sich bei Rotationen darauf beziehen zu können.
+        
+        Aber die gibt es eigentlich schon!!!
+        UNSINN: Model.alignment[u] bildet diesen Vektor ab
+        
+2108251301
+    TODO:   
+            IST:    sceneInit.txt {verwendete <Model>s; deren Alias für *Init.txt; deren Farbe; deren initiale Position; evt. Rotationsdefinition}
+                    animInit.txt {bzgl. <Model>-Alias; Animationskategorie(l oder r oder m); evt. Gelenk-Definition(<Model-Part>,Rotationsachse); evt. <Target>}
+            
+            SOLL:   sceneInit.txt {verwendete <Model>s; deren Alias für *Init.txt; deren Farbe; deren initiale Position}
+                    animInit.txt {bzgl. <Model>-Alias; Animationskategorie(l oder r oder m); evt. Gelenk-Definition(<Model-Part>,Rotationsachse); evt. <Target>}
+                    additionalTrafoInit.txt {verwendete <Model>s; evt. Rotationsdefinition;}
+                    
+                    Das Problem ist, dass bei IST die Rotationsdefinition initialisiert wird, 
+                                     bevor animInit.txt eingelesen wurde bzw. bevor entspr. <Anim>s exitieren.
+                                     entspr. verhalten sich Animationen von initial rotierter <Model>s inkonsistent, 
+                                     weil die Rotationsachse des Gelenks nicht rotiert wurde.
+                                     
+                    Die Lösung ist, dass evt Rotationen einzelner <Model>s erst am Ende durchgeführt werden. 
+                                    Also erst nachdem alle signifikanten Daten eingelesen sind.
+
+2108241034
+    Test421
+        Das Ziel ist es, dass alles was in Start.cpp(l.39-l.59) statisch initialisiert wird von Reader übernommen wird.
+        In animInit.txt stehen in jedem Datensatz schon r-Entitäten, aber die werden noch nicht genutzt und 
+        daraus lässt sich der 2. Parameter von addJoint() ableiten.
+            IST:    die <r-Entitäten> aus animInit.txt wird nach Funktionsvariable <rotVec[][]> eingelesen, aber nicht weiter verwendet.
+            SOLL:   eine <r-Entität> impliziert einen <significantPntIdModel> und <pivotPunkt>
+                    <modelList> muss an Stelle [Model] <modelName>
+                               .addJoint() aufgerufen werden und
+                                                                Adresse entspr. <Model>(-Parts) mit <rotVec[][]> übergeben
+                                                                 
+        Für den 1. Parameter muss sich noch etwas einfallen gelassen werden, das ist aktuell einfach statisch implementiert,
+        zB. könnte es in animInit.txt vor r-Entität noch eine j-Entität geben, mit der man die PunktIDs des zu rotierende <Model-Part>s definiert.
+        
+        Desweiteren muss in <Reader> beim Lesen von sceneInit.txt auch drauf geachtet werden, 
+        dass wenn eine r-Entität definiert wurde, auch die Rotationsachse des entspr. <Joint>s gleichermaßen(zum Mittelpunkt entspr.) wie <Model> rotiert wird
+        
+        Expliziter muss jedes mal wenn ein <Model>(um seinen Mittelpunkt) rotiert wird, auch die Liste seiner <Joint>s zum Mittelpunkt entspr. <Model>s rotiert werden
+    
+2108221552
+    auch versuchen:
+        <Model.pos> mit <Target.pos> vergleichen
+    und daraus ableiten, um welche Achse rotiert werden muss und um wieviel Grad pro Achse rotiert werden muss
+
+2108201937
+    Start::displayCallback()    //line 127
+                    /*TODO
+                     * <Figure.n> = (<Figure.pos> x <Figure.target.pos>)
+                     * alpha = arccos((<Figure.pos> SkalarProdukt <Figure.target.pos>)/(|<Figure.pos>|*|<Figure.target.pos>|)
+                     * neue Funktion, mit der aehnlich wie in <Model::rotateJoint()> mit Rotationsmatrix transfoemiert wird, die um <Model.n> rotiert/transforemiert
+                     * 
+                     * unter
+                     *  https://www.vcalc.com/wiki/vCalc/V3+-+Vector+Rotation
+                     *  V ist <Figure.pos>
+                     *  U ist <Figure.n> = (<Figure.pos> x <Figure.target.pos>) normiert
+                     *  alpha ist arccos((<Figure.pos> SkalarProdukt <Figure.target.pos>)/(|<Figure.pos>|*|<Figure.target.pos>|))
+                     */
+
+2108191939
+    https://www.c-plusplus.net/forum/topic/100424/vektor-in-richtung-von-deinem-anderen-drehen/23
+     spl*t Feb 8, 2005, 2:31 PM
+
+        Wenns 3D ist:
+        -normalize(Playerposition - Gegnerposition) ist Vektor v1 zum Spieler
+        -v2 ist vektor des Gegners
+        -du willst v2 drehen dass er auf v1 liegt
+        entweder:
+   /'   -v2 x v1 ist die Rotationsachse                             //<Model.n>
+**|    -arccos(v2 dot v1) ist der Winkel
+   \.   -Rotationsmatrix aus Achse und Winkel bauen (google)        //Das mache ich schon bei <Model.rotateJoint(float,int)>
+        -gegner_kopf_vertex = matrix * gegner_vertex
+        oder wenn du das mit den 3 Winkeln um x, y und z-Achse speichern willst(nicht getestet, sollte Probleme bereiten können, könnte aber funktionieren, vorallem wenn du nur um eine Achse drehen willst):
+        -v1.drehachse = v2.drehachse = 0; // für drehachse = y werden beide Vektoren auf den Boden projiziert
+        -arccos(v1 dot v2) = Drehwinkel um drehachse
+
+2108151723
+    Start.cpp/displayCallback()
+        Es wurde angepasst, dass nur noch über <Anim> referenziert wird.
+
+2108151429
+    extractPntIDsOf(Model*mPart) und addJointsAxis(nArg)
+                        ist  als 
+    addJoint(Model*m    Part,const std::vector<float>nArg) 
+                    zusammengefasst
+
+
+2108151330
+    NOTE    Transformation::rotatePointAround() ist deklariert/implementiert aber niemals genutzt
+
+2108142003
+    Weiter bei Transformation::rotateCam()
+        TODO l244
+2108141633
+    Weiter mit Model.cpp
+        Model::rotateJoint()
+            TODO l56
+
+2108131810
+    Der SegFault ereignete sich weil für entspr. <Model> noch kein <n> für ID=2 definiert war
+
+2108131047
+    Weiter bei /Test418_extendModel     //<Model> wurde um entspr. Informationen aus <Anim> erweitert, 
+                                            damit <Model> verantwortlich über entsp. Animation ist,
+                                            denn für die Animation wird auf Daten aus <Model> zugegriffen.
+                                            
+    TODO:
+        Model::matMul() nach Model::rotateJoint(int) integrieren
+        
+        Start.cpp    
+            ANSTELLE
+                if(leftSide) {
+                    modelList[0].rotate((-1)*ROT_ALPHA,'x',&modelList[0],animList[0].getPntIdsToRotate(0));      //.getPntIdsToRotate(0):=<figureLeftLeg>
+                    modelList[0].rotate(ROT_ALPHA,'x',&modelList[0],animList[0].getPntIdsToRotate(1));           //.getPntIdsToRotate(1):=<figureRightLeg>
+                }else {
+                    modelList[0].rotate(ROT_ALPHA,'x',&modelList[0],animList[0].getPntIdsToRotate(0));
+                    modelList[0].rotate((-1)*ROT_ALPHA,'x',&modelList[0],animList[0].getPntIdsToRotate(1));
+                }
+                
+            SOLLTE
+                if(leftSide) {
+                    modelList[0].rotateJoint(<jointId>);        //pntIdsToRotate[jointId][...]
+                }else {
+                
+                }
+                
+            WEITER SOLLTE
+                <Model.rotateJoint(int)> wissen,
+                 in welche Richtung/um welche Achse zu rotieren ist.
+                 Bzw. nicht um X-/Y-/Z-Achse rotieren ,sondern um eine universelle, diesem Gelenk zugehörende Achse(Einheitsvektor -> wiki).
+                 Das heißt pro <joint> in <Model> gibt es einen <Einheitsvektor{Ortsvektor,Richtungsvektor[länge 1]}> 
+                  der bei jeder Bewegung/Drehung entspr. transformiert wird.
+                  
+<Model> bekommt ein <Pivot>{std::vec<float>pos(3),EinheitsvektorX,EinheitsvektorY,EinheitsvektorZ}
+    zB. <Pivot>{(12,2,5),(0,0,1)}
+        Dann werden alle points[<pntIdsToRotate>] im Sinne
+            Drehung um eine Ursprungsgerade, deren Richtung und Orientierung durch den beliebigen Einheitsvektor n ^ = ( n 1 , n 2 , n 3 ) T {\displaystyle {\hat {n}}=(n_{1},n_{2},n_{3})^{T}} \hat n = (n_1, n_2, n_3)^T gegeben ist:
+            https://de.wikipedia.org/wiki/Drehmatrix#Drehmatrizen_des_Raumes_%E2%84%9D%C2%B3
+        um entspr. EinheitsvektorX gedreht.
+
+Erkenntnis: 
+                Selbes Fehlverhalten, bei um sich selbst rotierendem Würfel!
+                ... der Würfel sollte zuerst an den Ursprung projiziert werden (so dass <Model.pos>==(0,0,0))  , 
+                    dort gedreht werden     -so dass sein alignment[x] entlang der X-Achse steht
+                                                     sein alignment[y] entlang der Y-Achse steht
+                                                     sein alignment[z] entlang der Z-Achse steht
+                    und danach zurück an seine Ausgangsposition transformiert werden.
+
+TODO:   
+        Der Szene einen Würfel hinzufügen, der sich um sich selbst dreht.
+        Sofern geschaft ist, dass sich der Würfel konsistent um sich selbst dreht, auch wenn die Neigung ode Position der Kamera verändert wird, 
+        gilt es nur noch dieses System für/auf <ModelPart>s zu adaptieren.
+
+2030
+Note Start::displayCallback(line156)
+
+Die Beine von <figure> animieren realisiert in Star::displayCallback() 
+    An der richtigen Stelle(l.173) muss es(Referenzierung der PntIDs per <Anim.pntIdsToRotate>) implementiert werden 
+
+2108091643
+    Anfangs in Start.main() habe ich die Model.pointIDs von <beinLinks> und <beinRechts> schon herausgefiltert und direkt im Anschluß wurden entspr. PunktIDs rotieren gelassen, deswegen besitzen die Figure-Koordinaten seiner <Beine> auch keine initialen Koordinaten mehr.
+
+2108081751
+    
+    /*TODO
+     * Anfangs muss <ModelPart.pivot> jedoch zuerst entlang der Achsen ausgerichtet werden, 
+     * so dass <ModelPart.alignment[r]> in Richtung der X-Achse zeigt,
+     *         <ModelPart.alignment[u]> in Richtung der Y-Achse zeigt und
+     *         <ModelPart.alignment[f]> in Richtung der Z-Achse zeigt.
+     * 
+     * -->  <Model.alignment[]> zwischenspeichern,
+     *      mit der Mathematik aus Transformation.align() einen eigenen Ansatz programmieren um entspr. zum Ursprung auszurichten!!!
+     *      ...also die Berechnung so aendern, dass es sich nicht referenziell auf <Model.alignment[][]> bezieht sondern lediglich auf den Ursprung {0,0,0}
+     *      Und danach mit den folgenden TODOs weitermachen
+     *      Und am Ende die Werte des zwischengespeicherten <Model.alignment[]>s annehmen.
+     */
+    /*TODO
+     * Mit der Funktion ist zwar <Model> und entspr. Punkte von <ModelPart> bekannt,
+     * ABER die Punkte werden nur linear an den Ursprung transformiert, rotiert und dann wieder an ihre Ausgangsposition linear zurueck transformiert
+     * ES FEHLT     Information um welche Achse rotiert werden soll
+     * UND          <Anim.Model> muss ausegerichtet sein,
+     *              wenn sich die Kamera dreht ist <Anim.Model> und somit entspr. <Anim.ModelPart.pivot> anders zum Ursprung ausgerichtet als vor er Drehung
+     *              das heisst es muss pro <Anim.pivot> auch ein <Anim.alignment>(Initialwert muss in animInit.txt festgehalten werden->hängt ab von Model) 
+     *              geben, 
+     *              welches bei einer Kameradrehung mit rotiert wird, um die Ausrichtung bemessen zu koennen.
+     * ENTSPR       werden im Anschluss zuerst die Punkte des entspr.<ModelPart>s so rotiert, dass seine Ausrichtung mit den Koordinatenachsen uebereinstimmt
+     *      pro <Anim> fehlt eine <Ausrichtung> um 
+     */
+    /*TODO
+     *  Wenn m->getPoint[i][0]==mPart->getPoint[j][0] &&
+     *       m->getPoint[i][1]==mPart->getPoint[j][1] &&
+     *       m->getPoint[i][2]==mPart->getPoint[j][2] :
+     *       (wie anfangs in Start.cpp l45-l76)
+     *  Dann ist <i> eine ID eines Punkts von <m>, der zu diesem <mPart> gehoert und rotiert werden muss.
+     *  Also wird <i> dem Vektor uebergeben, um den der Vektor <pntIdsToRotate> anfangs, in seiner ersten Dimension erweitert wurde.
+     * 
+     *  --> pntIdsToRotate.at(static_cast<int>(pntIdsToRotate.size())).push_back(<i>);
+     */
+
+2108062146
+    Weiter bei Anim.cpp/Anim::extractPntIdsOf(Model*mPart) als TODO in Kommentar beschrieben
+
+2108051852
+    Anim.extractPntIdsOf() wird aufgerufen und iteriert die Sequenzen wie erwartet.
+    TODO:   Bei jedem Call von Anim.extractPntIdsOf() muss nach <pntIdsToRotate> ein weiteres Element erzeugt werden.
+            die iterierten Koordinaten müssen jetzt verglichen werden und bei Gleichheit muss entspr. ID in das erzeugte neue Element des Vectors geschrieben werden.
+
+TODO:   <Anim> ist indirekt verantwortlich für die Animation von <Anim>,
+        Weil <Anim> nicht zu <Transformation> referenzieren darf/kann.
+        Aber alle nötigen Schnittstellen wurden in <Anim> implementiert, 
+        um von
+        
+        //vorher müssen entspr. pontIds der zu rotierenden <ModelPart>s aus allen pointIds des <Model>s von allen <Anim>s extrahiert werden.
+        // => extractPntIds
+        Start::displayCallback() {  
+            for(anim:animList) {
+                transformation->rotate(anim.*,anim.*,...,anim.*)    //also nur mit Zugriff auf Elemente aus entspr. <Anim>
+            }
+        }
+        
+        Es gilt jetzt bloß noch entspr. <Anim>s mit entspr. Werten vorzubereiten, so dass der transformation->rotate()-call wie oben beschrieben
+                                                                                                                                -nur mit Zugrif auf <Anim>-Elemente, 
+                                                                                                                                                funktioniert
+                                                                                                                                                
+TODO: zunächst sollte die Verantworlichkeit für die Animation von <Anim> nicht mehr bei Start::displayCallback() sondern bei <Anim> liegen, 
+        weil <Anim> mit der neuen Architektur jetzt auch über alle Informationen verfügen kann.
+        
+    --> Also sollte entspr. transformation->rotate(...)-Calls aus Start::displayCallback() im Scope von <Anim> geschehen.
+        Dazu müssen die anfangs in <Start::main()> mit Hilfe <animatedPntIdsRightLeg>,<animatedPntIdsLeftLeg> extrahierten pntIDs nun <Anim> übergeben werden und 
+        entspr. transformation->rotate(...)-Calls aus Start::displayCallback() in entspr. <Anim> realisiert und entspr. in Start::displayCallback aufgerufen werden.
+        
+        --> Anim::triggerJoint() {
+                transformation->rotate(ROT_ALPHA,'x',&modelList[0],&animatedPntIdsRightLeg);
+            }
+            
+            Das funktioniert nicht, weil <Transformation>{#include <Anim>}
+                                    und somit kann nicht <Anim>{#include <Transformation>}
+            
+        evt. -->    Start::displayCallback() {
+                        transformation->rotate(anim.getAlpha(),anim.getAxis(),anim.getModel(),anim.getAnimatedPntIds());
+                    }
+
+<Anim> verfügt noch über keine Referenz zu signifikantem <Model-Part>
+    -> Das heißt, sollte (<Anim.category>=='m') 
+        -> dann muss Anim auch die IDs entspr. Punkte referenzieren können
+        
+        DONE:   Dazu habe ich <Anim> erweitert um:
+                    void setAnimatedPntIds(std::vector<unsigned int>animatedPntIdsArg);
+                    std::vector<unsigned int>animatedPntIds;
+                    
+        IDEE:   Zur Initialisierung, wenn animInit.txt eingelesen/verarbeitet wird UND (<Anim.category>=='m'), 
+                                     werden zu referenzierende PnktIDs ausgemacht in ein std::vector geschrieben;
+                                     entspr. <Anim> wird initialisiert;
+                                     der std::vector der zu referenzierende PnktIDs wird mit setAnimatedPntIds() dem <Anim> übergeben.
+
+Jede Transformation::rotate*() oder moveCamAlongAlignment() oder *** muss auch entspr. <Pivot>s rotieren lassen!!!!
+
+Drehpunkt muss Position und X-/Y-/Z-Einheitsvektor implizieren
+Darüberhinaus muss bei jeder Kamerabewegung sowohl alle <Model>s als auch alle <Drehpunkt>e(Position und X-/Y-/Z-Einheitsvektor) dieser rotiert werden.
+
+<Model> referenziert aber nicht direkt zu <Drehpunkt> (-> Anim muss <Drehpunkt> inkludieren)
+                                                          Anim inkludiert bereits <rotVec>; <rotVec> wird in Transformation::rotateCam() und Transformation::moveCamAlongAlignment() verwendet, aber das Programm arbeitet konsistent auch wenn man die Verwendungsstellen auskommentiert.
+        ===> Ein neuer Ansatz muss her!
+             Ein Gelenk/Drehpunkt ist Information einer Animation;
+             
+             ===> Anim { ...
+                         std::vector<Pivot*> pivots;
+                         
+                       }
+                       
+                       ===> class Pivot() {
+                            private:
+                              std::vector<float>pos(3);                                 //Die Position des Achsenkreuzs
+                              std::vector<float>dirUnitVecs(3,std::vector<float>(3));   //Das Achsenkreuz des Gelenks, zur Bestimmung seiner Ausrichtung
+                            public:
+                              void setPos(std::vector<float>posArg);
+                              void setDirUnitVecs(int axis,
+                            };
+
+Test415_rotAxisVecsInAnimIncludedAndInCamMoveTransformed	rotes <Figure> wird linear von PnktA -> PnktB transformiert;
+								Beine sollen abhängig zu Inertialsystem <Figure> in Schrittbewegung transformiert werden;
+								Beine werden unabhängig zu Inertialsystem <Figure> transformiert, 
+								ABER weil <TargetPnt> der Rotation  der <Ursprung> ist, 
+								verhält sich die Transformation der Schritte relativ zur Neigung/Rotation der Kamera,
+								WEIL nicht die Kamera geneigt/rotiert wird, sondern alle Punkte der Welt,
+								ABER nicht der <Ursprung>.
+								=> Es muss entwickelt werden, 
+								   dass Punkte <PartOfFigure> von <Figure> um <Target> rotiert werden
+Test401								konsistente Version zur Demonstration aller bisherigen Funktionalitäten
+
+210725-1302
+    NOTE:   <animCategory> ist ein Feld um zwischen linearen Tranformationen eines gesamten inertialen <Models> und 
+                           Transformation gewisser Teile eines inertalen <Models> zu unterscheiden.
+            In Anim.cpp wurde der Bezeichner zu "category" geändert.
+            In Start::displayCallback() wird mithilfe <anim::category> zwischen:    linearer Transformation von <Model>
+                                                                                    rotierender Transformation von <Model>
+                                                                                    rotierender Transformation von geissem Bereich/Teil aus/von <Model>
+            unterschieden.
+
+210525-0639
+    NOTE:   Es ist falsch <Model> von außen zu modifizieren.
+            Es muss system-intern modifiziert werden.
+            Denn die Architektur des <Model>s wird verändert.
+            <Model>s sind mit dem projizierendem System zu sehr verzahnt, 
+            als dass ihr Inertialsystem über das eigene Inertialsystem hinaus modifiziert werden können.
+            
+210524-1240
+    TODO:   Wenn sich die Kamera linear bewegt müssen <Anim::rotVec> mit transformiert werden!!!
+    
+    ----> Transformation::moveCamAlongAlignment() muss dafür auch die <animsList> übergeben werden!!!
+    DONE
+
+210524-1056
+    NOTE:   Die Vektoren der Rotationsachse werden bei Kamerabewegung noch nicht transformiert/rotiert, sondern sie behalten immer statischen ihren initialen Wert!!!
+    TODO:   Weiter in <Transformation::rotateCam> l285
+            <Anim::rotVec> muss genau wie <rotate(alpha,axis,&m,camPos)> 
+                                            -alle <Model>s um <camPos> rotiert-
+                                die beiden Koordinaten <Anim::rotVec> um <camPos> drehen.
+                                
+            -> also das was <rotate(alpha,axis,&m,camPos)> mit allen Punkten von <m> macht, 
+               muss ein <<rotate(alpha,axis,&std::vector<float>pnt,camPos)> nur mit <pnt> machen!!!
+    DONE
+    
+
+210523-2029
+    TODO:   Weiter in <Start.displayCallback() l183
+                      <Transformation::organiseAndAnimate()> l362
+
+210523-1825
+    TODO:   Zunächst müssen brauchbare Werte für eine Definition der Rotationsachse gefunden werden, um damit weiter zu entwickeln
+            ((-1,0,0),(1,0,0))
+            (Danach muss (in diesem Fall) <figure> an den Ursprung versetzt werden.)
+            Danach muss berechnet werden um wieviel Grad(alpha,beta,gamma) die Rotationsachse rotiert werden muss, um parallel zur X-Achse zu stehen.
+            Danach wird <figure> theoretisch um entspr. {alpha,beta,gamma} rotiert.
+            Damit die Punkte von <leftLeg> und von <rightLeg> konsistent ein Stück weiter rotiert werden.
+            Und zuletzt wird (in diesem Fall) <figure> um entspr. {-alpha,-beta,-gamma} in ehemalige Lage zurück rotiert.
+            (Und zuletzt muss (in diesem Fall) <figure> zurück an seine ursprüngliche Position versetzt werden.)
+            
+    
+    
+210523-1758
+    TODO:   Die Übersetzung von Inertialsystem zu absolut kann auch innerhalb des getters geschehen.
+    DONE
+
+210523-1740
+    TODO:   <Anim.Rotationsachse> existiert im Inertialsystem von <Anim.m> bzw. relativ zu <Anim.m.pos>
+    NOTE:   Die Übersetzung von Inertialsystem zu absolut geschieht im Aufruf
+
+210523-1638
+    TODO:   Rotation muss integriert werden,
+            das heißt Informationen zum Drehachsen-Vektor müssen implementiert werden können.
+            Informationstechnisch sind das bloß 2 std::vector<float>(3) aus dem Inertialsystem des entspr. <Model>s.
+            
+            Das kann realisiert werden, indem in <animInit.txt> ein Attribut wie zB. "r:(1.0,2.0,3.0),(3.0,2.0,1.0)" definiert wird.
+    CHECK:  Alle Daten der Rotationsachse wurden an <Anim> übergeben
+    CHECK:  Auf die Daten der Rotationsachse von <Anim> kann von außen zugegriffen werden.
+
+210523-1509
+    TODO:   Als nächestes muss <Anim> über diese Information verfügen.
+    CHECK:  <Anim> kennt seine Kategorie und sie per getCategory() erfragbar.
+
+210523-1423
+    TODO:   Euerst muss in <animInit.txt> eine weitere Information verarbeitet werden können, ohne dass die restlichen Informationen beeinträchtigt werden!!!
+    CHECK:  In animInit.txt muss als 2. Token die Kategorie erwähnt werden: l:=linearTransformation, r:=rotation, m:=move(linearTransformation+rotate)...
+
+210523-1258
+    TODO:   Ein <Anim> muss wissen welche Art-Animation(linear,rotation) es ist.
+            <animInit.txt> muss die Information Art-Animation mitgeteilt werden.
+            entspr. muss <Reader.readAnim()> spezialisiert werden auch die Inforamtion Art-Animation aus <animInit.txt> zu lesen und
+            entspr. muss der Konstruktor von <Anim> diese Information entgegen nehmen und entspr. verarbeiten.
+            Damit der Interpreter <Start.displayCallback()> Art-Animation von entspr. <Anim> differenzien kann.
+
+
+210522-2258
+    NOTE:   Es ist wichtig <Anim> generisch zu relisieren, so dass damit sowohl lineare <Target> zu <Target> Animationen, 
+            als auch Rotationen durchgeführt werden können.
+            
+            Es könnte zB. in <Anim> ein char hinzugefügt werden, anhand welchem der Laufzeit-Interpreter in <Start.displayCallback()> erkennen kann, 
+            um welche Art es sich bei diesem <Anim> handelt.
+            
+            Auch müsste <Reader> umgestaltet werden, so dass weitere Eigenschaften eingelesen werden und damit ein weiteres anderes <Anim> beschrieben werden kann.
+            
+            <Start.displayCallback()> 
+
+
+            
+210522-2204
+    TODO:   <Model> oder <Anim> muss hierfür Informationen bzgl. der Rotationsachse implizieren.
+            Also pro Animation 2 std::vector<float>(3)
+            
+    NOTE:   Hierbei muss überlegt werden wohin die Information der beiden Punkte der Rotationsachse geschrieben werden, 
+            ohne unnötigen Speicher belegen zu können.
+
+210522-2158
+    NOTE:   Auf die <Model.alignment>-Vektoren kann sich nicht bezogen werden, um die Neigung von <Model> zum Ursprung zu korrigieren
+            -> Hierfür wird etwas gesucht, dass die Orientierung des <Model>s zum Ursprung beschreibt.
+               Weil <Model.alignment> aber von rotation() nicht beeinflusst wird, wird etwas anderes gesucht.
+
+210522-1851
+    TODO:   Die <Model.alignment>-Vektoren müssen untersucht weren, wie sie sich bei Kameradrehung verändern
+    
+    --->    Der Wert des <Model.alignment>-Vektors verhält sich statisch und verändert sich nicht.
+            <Model.alignment> bleibt konstant bei {{1,0,0},
+                                                   {0,1,0},
+                                                   {0,0,1}}
+    ===>    Das mit den <alignment>-Vektoren funktioniert nicht.
+
+210522-1651
+    TODO:   entspr. in <Transformation::rotateAnother()> l220 beschrieben.
+    
+210519-2009
+    TODO:   Der Vektor <um> muss für die Transformation/Rotation am absoluten Ursprung stehen,
+            die Drehachse muss parallel zur Rotationsachse verlaufen bzw. entspr. <Model> muss um PHI rotiert werden, so dass die Drehachse parallel zur Rotationsachse verläuft.
+            Es wird transformiert/rotiert
+            und danach wird die transformierte Gestalt linear zurück transformiert, so dass der Drehpunkt wieder auf <um> steht.
+            <Model> wird um (-PHI) zurück auf seine AUsgangslage rotiert.
+            
+    NOTE:   Transformation::align() wurde überladen, so dass ein <Model> und ein Punkt übergeben werden kann. Damit <Model> auf Punkt ausgerichtet werden kann.
+
+
+210516-0816
+    NOTE:   Transformation::rotate() muss <pos> gar nicht per Subtraktion von <pos> an den Ursprung versetzen, 
+            sondern Ursprung kann als solches(0,0,0) statisch angenommen werden.
+            
+            
+            
+
+210515-2216
+    NOTE:   Das zuRotierendeModel kann für jede Rotation oder KomponentenRotation an den Ursprung linear transformiert werden, 
+            dort wird die Rotation durchgeführt und zuletzt wird das Model wieder linear zurück transformiert.
+
+210515-2130
+    NOTE:   Nicht die Kamera dreht sich, sondern die Welt dreht sich um die Kamera.
+            Infolge dessen wird auch die Lage der Welt in Abbildung auf das Achsen-Kreuz manipuliert.
+            Was zur Folge hat, dass das Achsen-Kreuz nach der Kamera-Drehung anders zur Welt liegt als vor der Kamera-Drehung.
+
+210514-2044
+    NOTE:   Es liegt wahrscheinlich daran, dass <pivotPnt> niemals seine Koordinaten-Werte ändert, da sich die Welt um ihn aber andauernd bewegt 
+            -wenn sich die "Kamera dreht"-, sich aber die Bewegung der Beine an <pivotPnt> richtet, scheint es wahrscheinlich so, als würden 
+
+210514-1754
+    NOTE:   Passendes stellvertretendes rechtes Bein ist modelliert/konvertiert -> muss jetzt nur noch wie <linkesBein> eingelesen/eingestellt werden.
+
+210513-2144
+    TIP:    evt. könnte das Ergebnis noch weiter verbessert werden, wenn <linkesBein> in soweit mehr definiert wird, 
+            dass einige der oberen Flächen als Dreiecke gezeichnet werden.
+
+210513-2141
+    NOTE:   Mit einem äquivalent neu definierten <linkesBein> überzeugt das Ergebnis und zwischen den Beinen werden keine Flächen unnötig weggecullt.
+
+210513-2111
+    NOTE:   Es muss dran gedacht werden, dass das nochmals definierteren <Figure> auch ein anderes/äquivalentes <linkesBein> braucht.
+
+210513-2014
+    NOTE:   Die Verkürzung des <linkesBein> hat den erhofften Effekt ausgelöst, dass die <Transformation> noch beser gelingt.
+            
+    TODO:   Es ist zu erkennen, dass einige Flächen von <Figure> nach der Transformation, zwischen den Beinen, weggecullt weden und ein Loch entsteht.
+            Es wäre interessant zu sehen, ob sich das Ergebnis der Transformation ändert, wenn die Flächen von <Figure> zwischen den Beinen definierter ist.
+    
+210513-2002
+    TODO:   Es wäre interessant zu sehen wie sich diese <Transformation> auf ein oben verkürztes <linkesBein> auswirkt.
+
+210513-1940
+    NOTE:   Die Transformation/Rotation von <linkesBein> an <Figure> sieht hier in Ordnung aus.
+            In Start.cpp wurde (l55-l68) der Fließkommazahl-Vergleich anders implementiert um die signifikanten Punkte zu sammeln;
+            In Start.cpp wird (l86-l95) die neue Überladung der Transformation::rotate() mit definierten Attribut-Werten aufgerufen;
+            In Transformation (l168-l180) ist eine weitere Überladung der rotate() implementiert, um nur einen gewissen Teil eines <Model>s zu rotieren;
+
+210513-1526
+    NOTE:   Es wäre unbedacht mit Referenzen die zu transformierenden/rotierenden <Punkt>e zu komunizieren, 
+            weil sowohl <Model.get-/setPoint()> betrofener Punkt über ID mitgeteilt wird.
+            
+            Eine weitere Überladung der Funktion Transformation::rotate() wird nur bestimmte <Punkt>e des übergebenen <Model>s, um <alpha>, entlang <axis>, 
+            orientiert an <um> drehen.
+            Die Methoden Signatur ist im h-File implementiert, der Kopf ist im cpp-File integriert und ein Bsp.-Call aufgesetzt.
+            
+            TODO:   In Start.cpp muss <pivorPnt> bestimmt werden.   //CHECK nach eigenem Ermessen
+            
+                    In Transformation.cpp muss der Methoden-Rumpf muss ausimplementiert werden.
+
+210512-2130
+    NOTE:   Ich habe den std::reference_wrapper<std::vector<float>> durch einen std::vector<std::vector<float>> ersetzt und 
+            im push_back den getPoint()-Aufruf dereferenziert, so dass hier nicht einfach eine ID(wie zuerst implementiert) der Struktur übergeben wird,
+            sondern direkt die Referenz auf die Punkt-Koordinate.
+            Somit kann das einer weiteren Transformation::rotate() mitgeteilt werden und es bleibt somit die Referenzierung über eine ID erspart.
+
+210511-0755
+    NOTE:   vielleicht funktioniert es Referenzen mit einem std::vector abzulegen, mit Benutzung von std::reference_wrapper<T>.
+
+210511-0630
+    ERGO:   es muss ein <Fixpunkt> definiert werde (um den die Punkte von <linkesBein> gedreht werden)
+            es muss Transformation::rotate(float alpha,char axis,Model*const m,std::vector<unsigned int>animatedPntIds,std::vector<float>*um) definiert werden.
+                <m> -> points[<animatedPntIds>] werden um <alpha> entlang <axis> um <um> herum gedreht.
+                
+210510-1242
+    NOTE:   Es ist jetzt möglich auf die signifikanten Punkte zu referenzieren
+            Bsp.:   <Figure> <linkesBein>
+                    zur Laufzeit liegen Informationen(IDs der Punkte von Figure.points[][]) vor, 
+                    um auf die Punkte entspr. Flächen von <linkesBein> zu referenzieren.
+
+210509-2051
+    NOTE:   In Start.cpp werden alle Punkte des linken Beins des <Model>s "Figure" über Punkt-IDs aus <animatedPntIds> referenziert.
+
+210509-1312
+    NOTE:   Kopie von [Blender-File] der <Model>s "Figure", 
+            welches auf <zu animierende Fläche>n reduziert,
+                    zu <Model>-Datei konvertiert
+            wurde,
+            kann jetzt als <Maske> dienen, 
+             um signifikante <Punkt>e entspr. <Fläche>n,
+             des <Model>s "Figure"
+            zu identifizieren/referenzieren.
+            
+            NOTE:   <Maske>
+                    <Figure>
+                    
+                    <Maske> ⊆ <Figure>      //Sowohl <Punkt>e als auch <Punkt>e entspr. <Fläche>n von <Maske> sind in <Figure> enthalten.
+                                            //Der einzige Unterschied ist der, dass die <Punkt-ID>s der <Flächen> unterschiedlich sind.
+                                            //Diese Informationslücke kann aber umgangen werden, 
+                                            //indem die Zuordnung nicht mehr über <Punkt-ID> sondern explizit über den Vektor des <Punkt>s erfolgt.
+                                            //Zwar stimmen die IDs unter "<Flächen>" in den <Model>-Dateien von <Maske> und <Figure> nicht mehr überein,
+                                            // dafür sind es aber immer noch die selben <Punkt>Vektoren die referenziert werden sollen,
+                                            // also kann statt über die IDs zu auf die <Flächen> zu referenzieren,
+                                            // gleich auf die zu rotierenden <Punkt>e referenziert werden.
+                                            //
+                                            //Es muss also eine Struktur der zu referenzierendne Punkte geben
+                                            //Und es bedarf noch einer weiteren Funktion in <Transformation> rotate(), 
+                                            // die als Argument statt <*Model> einen Pointer entgegennimmt, 
+                                            // der auf die Struktur zu referenzierendner Punkte zeigt,
+                                            // damit referenzierte <Punkte>-Koordinaten, um <Fixpunkt>-Koordinate rotiert werden können.
+                                            
+            TODO:   Daraus ergeben sich folgende Aufgaben:
+                    Die stellvertretenden Objekte <Maske> und <Figure> müssen 
+                    In einer Struktur <facesComplex> müssen Referenzen abgelegt werden, die auf die <Punkt>-Vektoren zeigen
+
+210509-1150
+    NOTE:   In der aktuellen Szene wird das <Model> figure.txt projiziert.
+            Ziel ist Komponenten/Bereiche/Flächen von <Model> individuell/gelöst vom Rest zu transformieren.
+            Bzw. gewisse Flächen um Fixpunkt zu rotieren.
+            
+            TODO:   Ein <System> das gewisse <Fläche>n eines <Model>s
+                     gesondert vom Rest(der <Fläche>n des <Model>s) 
+                    zusammenfasst,
+                    Für das Ein <Fixpunkt> definiert ist
+                    Und die <Punkte> der gewissen <Fläche>n des <Model>s, gesondert vom Rest um <Fixpunkt> zu rotiert.
+
+210509-1136
+    WARNING:
+    NOTE:   Es müssen mindestens 2 Farben in sceneInit.txt definiert werden, egal ob nur eine verwendet wird
+
+210508-1827
+    NOTE:   Die Idee ist ein Model aus einer Komposition einzelner Teil-Models zu kreieren.
+            So dass es möglich wird, mehrere Teil-Models als ein Gesammt-Model zu betrachten/transformieren und
+            so dass es möglich wird, dass 
+
+210502-0941
+    NOTE:
+            Es liegt wahrscheinlich daran, dass die Punkte der Polygone in Blender nicht gegen den Uhrzeigersinn miteinander verbunden wurden 
+             und darausfolgend mein Programm die Flächen nicht korrekt cullt.
+
+
+210501-2000
+    NOTE:   evt hat das mit der grafischen Ausrichtung der <Model>s nicht so richtig funktioniert,
+             weil die berechneten Winkel nicht richtig sind,
+             möglicherweise sind die orthogonalen Abbildungen der r-/u- alignmentVektoren für diese Aufgabe überflüssig, 
+             weil das <Model> nachfolgend nur nach vorne bewegt und schlussfolgernd dessen nur der f-alignmentVektor korrekt arangiert sein muss.
+
+210429-1811
+    In <lowPolyCarAlittleExtruded.txt> sind die Polygone/Faces am idealsten für das Z-Buffering ausgerichtet
+    NOTE:   <lowPolyCar.txt> ließ sich in <sceneInit.txt> nicht rotieren, bis SOLVED
+
+210428-1106
+    NOTE:   In <Reader> wird die <Target>-LinkedList immer beendet/geschloßen, indem das letzte <Target> auf das erste zeigt.
+
+210427-2109
+    TODO:   Bewegungen von <Model>s sollten auch um <Model>s rotiert werden können
+
+210427-1828
+    NOTE:   Das 3. Argument von Transformation::move() ist <const int speed>, wird in <Start.cpp> aufgerufen ud es wird im Endeffekt immer 1 übergeben.
+             --> man kann das Argument und die Multiplikation für jeden Transformation::move()-Aufruf einsparen
+
+210426-1746
+    CHECK:  Mit Blender habe ich ein objekt detailierter segmentiert:
+                -Model auswählen
+                -Edit Mode
+                -Tools/Add:/Subdivide
+            ...und das Ergebnis überzeugt
+            
+210426-1551
+    NOTE:   zB. die Segmente von Models wie <cube> tiefer unterteilen, um weniger Fehler(Z-Fighting) bei die Verdeckung einzelner <Model>s zu erhalten.
+            Für <Reader> habe ich die Warnung für "-Wsign-compare" behoben,,
+             weil in Reader::allocPntrs() wurden fälschlicherweise vorzeichenbehaftete Werte iteriert.
+             -> unsigned int amtPnts;
+             -> unsigned int amtFaces;
+             -> std::vector<unsigned int>pointsPerFace;
+
+210425-1237
+    NOTE:   Durch hinzufügen von -Wshadow in makefile für jede g++ Instruktion habe ich gemerkt, 
+            dass in <Reader> die Laufvariablen seperat deklariert waren. Das habe ich rausgenommen => Die Laufvariablen existieren jetzt exklusiv in jedem Stackframe.
+            
+            Durch hinzufügen von -Wshadow in makefile für jede g++ Instruktion habe ich gemerkt, 
+            dass in <Anim> der std::vector <targets> unnötigerweise im Konstruktor nochmal deklariert wurde.
+            WARNING: Wann ich das ändere läuft das System aber auf einen SEGFAULT hinaus!!!
+            
+            Durch hinzufügen von -Wshadow in makefile für jede g++ Instruktion habe ich gemerkt, 
+            dass in <Transformation> die Deklaration von std::vector<float>*camPos redundant ist, weil <camPos> wenn nötig immer als Argument übergben wird.
+    
+210424-2254
+    NOTE: Ich habe noch ein paar casts zu static_casts gewandelt
+
+210424-1253
+    Ich habe Compiler-Warnungen aktiviert: -pedantic -Wall -Wextra 
+     Die keyboardFunc() forderte 2 nutzlose Parameter,                                  //Die Warnung konnte ich unterbinden mit entspr. Präprozessor-Befehlen
+     Das Stackframe der keyboardFunc() enthielt 6 nutzlose float-Variablen,             //Die Variablen-Deklarationen habe ich entfernt
+     In <Reader> Zeile 164 wird sich beschwert, weil eine vorzeichenbehaftete Zahl mit einer vorzeichenlosen Zahl verglichen wird       //Das habe ich korrigiert
+     //alle Warnungen wurden korrigiert
+     
+210423-2055
+    NOTE:   Start::getModel(name) war unbenutzter Code und wurde entfernt.
+
+210423-1301
+    NOTE:   Wenn in Start::displayCallback der letzte Schritt nicht mehr explizit gegangen wird, 
+            tritt der Fehler    
+                              -dass <Model>s verschwinden wenn sie das letzte Element der <anim.targetList> ansteuern-
+            nicht mehr auf.
+    
+210423-1237
+    TODO:   Sinnvoll ist es, 
+            erstmal zu realisieren, dass die gesamte grafische Ausrichtung entspr. <Model>s konsistent innerhalb <Start> geschieht.
+            
+            1. Zuerst wird zusammengefasst auf welche Werte in \Test388 zugegriffen wird um <Model>s grafisch auszurichten.
+            2. Danach werden diese Werte ausgegeben, um einen konsistente Zugriff auf diese Werten zur Laufzeit gewährleisten zu können.
+            
+210423-1150
+    NOTE:   Es ist jetzt sichergestellt, dass die Liste der <Target>s iteriert werden kann und nach dem letzten <Target> wieder beim ersten Element fortgefahren wird.
+
+210423-1022
+    NOTE:   Zur Überprüfung wird die Namen des nächsten <Traget>s ausgegeben, nachdem ein fokussiertes <Target> erreicht wurde.
+            In /Test388 liegt der mathematische Teil -der grafischen Ausrichtung- in <Start> ausimplementiert vor.
+                        
+210423-0803            
+    DONE:   Start::displayCallback() {usleep(35000) auf usleep(30000) geändert}
+
+210419-1927
+    Die <Model>s verschwinden in dieser Version nicht, vermutlich weil nicht auf das dem <Model> entspr. <Target> referenziert wird, 
+    welches am Ende der Queue wieder vom 1. <Target> abgebildet wird.
+    
+210418-2108
+        Das lässt aber darauf schließen, dass es möglih sein sollte Animationen mit Ausrichtung des <alignment>s konsistent zu realisieren
+
+210411-1604
+    NOTE    Jetzt sollte es auch möglich sein, ein <Model> entspr. seiner Ausrichtung bzw. <Model.alignment> zu drehen,
+            so dass es in die Richtung seines entspr. <Traget>s zeigt.
+            
+    TODO    Dazu muss ermittelt werden, 
+            um welche Winkel-Werte(alpha,beta,gamma) sich der Zustand des POST-<Model-alignment> zu PRE-<Model-alignment> änderte.
+            Und nachfolgend das <Model> entspr. der Winkel alpha,beta,gamma um x-,y-,z-Achse mit Transformation::rotateFigure() rotiert werden.
+
+210411-1532
+    Mit 
+        void Transformation::rotateFigure(const float alpha,const char axis,Model*const m) 
+    ist es gelungen <Model>s unabhängig ihrer Ausrichtung/Animation um sich selbst zu drehen.
+
+210411-1325
+    Szene wurde erweitert.
+    TODO: unter Start::animate() implementieren dass <Model>s um sich selbst gedreht werden, ohne ihre Ausrichtung zu verändern
+          -> dazu muss ein exklusives Transformation::rotate() implementiert werden, weil nur die <Model.point>s rotiert werden, nicht aber <Model.alignment>.
+        
+210409-1920
+    NOTE es wäre gut zu überlegen, eine rotate()-Funktion zu implementieren, 
+         die nur die Punkte/flächen eines <Model> rotiert und die ausrichtung unverändert lässt.
+    
+    Das funktioniert nicht so einfach, weil das das Prinzip der Kameradrehung stören würde!
+
+210409-0825
+    TODO:   Die Idee ist, die Komponenten aus <Start.cpp>, die zu <GL/gl.h> und #include <GL/glut.h> referenzieren, vom Rest zu trennen.
+            So dass alles, das auf die Schnittstelle zugreift, vom Rest des Programms separiert wird.
+    NOTE:   weil glutMainLoop() in der main() aufgerufen werden sollte, muss main in <Interface> stehen
+            => <Start.cpp> spiegelt <Interface> wider.
+    
+210408-2237
+    evt neben <Start.cpp> auch eine <Interface.cpp> ausimplementieren.
+    <Interface.cpp> übernimmt alles aus <Start.cpp> das auf #include <GL/gl.h> und #include <GL/glut.h> referenziert.
+    So dass <Start.cpp> nur noch den Wurzelpunkt main() ausmacht.
+    
+    Aber die main muss dafür ein <new Interface()> aufrufen und dieser Konstruktor realisiert alles aus main was auf #include <GL/gl.h> und #include <GL/glut.h> referenziert.
+
+210407-1420
+    evt. Start::modelList als set realisieren?
+    NEIN das geht nicht weil <modelList> als std::vector implementiert ist.
+    ->ABER ich habe die getModel() mit einer ForEach realisiert.
+
+210407-1234
+    NOTE
+        Star::getModel() wird nur in keyboardFunc() verwendet
+    
+210406-1607
+    DONE:
+        rotateCam() könnte in <Transformation> implementiert werden
+            -> moveDirection() ist auch in <Transformation> implementiert.
+               und moveCamAlongAlignment() ist auch in <Transformation> implementiert.
+
+210406-1055
+    DONE:   Schnittstellen für den Mehrzweck definieren!
+            Versuchen aus <Start>   init(),keyboardFunc(),displayCallback() zu dividieren, so dass in init() Konfigurationen veranlasst werden.
+            
+            -> Also:    getModel(), rotateCam(), moveCamAlongAlignment(), animation()
+                von:    init(stellvertretend für Inhalt der momentanen main()), keyboardFunc(),displayCallback()
+            trennen  
+
+210406-1054
+    Zur probe wird in Start::animate() das <anim->getModel()->alignment> entspr. ausgerichtet.
+        problematisch, weil <Model->alignment> keine Einheitsvektoren sind und weil viel organisiert werden müsste(Transformation an Ursprung etc.)
+
+210405-2027
+    Model::toString() entfernt
+
+210405-1848
+    IDEE: Als nächstes wäre denkbar, dass man animierte <Model>s nicht nur theoretisch auf ihr <Target> ausrichtet, sondern auch grafisch
+
+210405-1812
+    CHECK
+        Das Problem ist, dass die initiale Position des zu animierendes <Model> auch in die Liste der <Targets> aufgenommen wird
+
+210405-1716
+    ATTENTION:  Das <Model> wird von <Target> zu <Target> nur schrittweise geführt, 
+                um das allmähliche Voranschreiten zu simulieren, 
+                am Ende muss das <Model> an die exakte Position des <Target.getTo()->pos> gesetzt werden!
+                Ansonsten würde das Verhältnis folgender <Target>s gestört.
+                
+                In <Start.animate()>
+                 --> Nachdem der letzte Schritt gegangen ist: <Model.pos> = <Target.getTo()->pos>
+
+210405-1657
+    DONE: Es ist implmentiert, dass der Kreis nach durchlaufen aller <Target>s aus <Anim.targets> geschloßen(
+                                                                                                              ein <Target> existiert, 
+                                                                                                              dass vom letzten <Target> auf das zurück 1. verweist
+                                                                                                            )wird.
+
+210405-1321
+    TODO: Weiter in <Reader.cpp> Zeile 209
+
+210405-1102
+    TODO:   Die Reihenfolge der eingelesenen <Target>s in der resultierenden Struktur ist nicht korrekt!
+
+        NOTE:   Es wurden alle Instruktionen auskommentiert, die eine konsistente <Taget>-/<Anim>-Sequenz benötigen
+                Reader::readAnim()
+                Start::animation()
+
+210404-2301
+    TODO:   Das Ergebnis/Konsolenausgabe von <Reader.readAnim()> untersuchen! Das sieht interessant aus!!!
+
+210404-2236
+    NOTE:
+        Dem <Target>-Konstruktor wird ein falscher Parameter als 2. Argument übergeben.
+        Dort muss <Target> eingetragen werden, auf das sich nun zubewegt werden soll.
+        
+        In der aktuellen Implementierung wird aber immer zu bewegendes <Model> übergeben.
+        Das erklärt auch das inkonsistente Verhalten des Systems.
+        
+        Und das erste <Target> eines <Anim>s muss im Konstruktor als <fromArg>-Parameter immer das zu bewegende <Model> enthalten
+
+210404-1422
+    TODO:   Reader::readAnim refactorn!
+            =>  <Anim> und <Target> refactorn!
+
+            SOLL:
+                in animInit.txt soll eingegeben werden
+                 welches <Model> sich nacheinander auf eine beschriebene Reihenfolge von <Target>s zubewegen soll
+                 
+                 Dem Konstruktor von <Target> werden 2 <Model>-Referenzen übergeben(falls die (eukidische-)Distanz dazwischen neu berechnet werden muss).
+                 
+                 Für <Start.animation()> muss ein Weg gefunden werden, um:
+                  - alle <Anim>s zu iterieren
+                   - pro iteriertem <Anim> zu prüfen, ob noch ein Schritt in Richtung der Ausrichtung gegangen wird oder
+                   - auf das nächste <Target> zugesteuert wird
+                    - die <Target>s werden nicht mehr in einer einfachen Sequenz abgelegt, sondern in einem Ring Buffer oder Circular Queue,
+                      so dass nach erreichen des letzten <Target>s wieder auf das 1. <Target> zugesteuert wird.
+                    - das impliziert, eine Änderung des <Target>s (das nächste im Ringbuffer) und
+                    - eine neue Ausrichtung(auf das geänderte <Target>) des <Models> das bewegt wird.
+                        
+210403-1234
+    Das nacheinadner doppelt aufgezählte t:"Monkey"; ist um Ungenauigkeiten der Floatingpoint-Arithmetik/-Division zur Berechnung der euklidische Distanz zu glätten.
+                                                     weil somit die Richtung beibehalten wird, sich aber die relative Distanz zum 2. <Target> verkürzt und 
+                                                     demzufolge weniger Ungenauigkeiten bei der Floatingpoint-Arithmetik/-Division auftreten.
+
+210402-2224
+    Untersuchen wie weit <Start> noch aufgeteilt werden kann, um eine möglichst dünne Schnittstelle nach außen zu bieten, 
+    die aber alles nötige kommuniziert. 
+    Pixel färben, Fenster initialisieren, Keylistener etc.
+
+210402-2149
+    Eigentlich gehören Start::rotateCam() und Start::moveCamAlongAlignment() zu <Transformation>
+    Das funktioniert nicht, bzw. die Umstände(der Zugriff auf Datenstrukturen bzw. die Einrichtung von Parametern die übergeben werden müssten wären zu enorm.
+    
+210402-2113
+    TODO:   Die geschwindigkeit anpassbar gestalten
+        Die Geschwindigkeit wirkt sich in folgenden Bereichen aus:
+         Target::Target()           bei der Berechnung von <totalNrSteps>
+         Transformation::move()     
+
+210402-2106
+    So wies aussieht funktioniert die Schleife bzw. die Wiederholung der Animation
+
+210402-1943
+    Nachdem das letzte <Model> aus animInit passiert wurde ändert das <Model> seine Richtung nicht, solange bis die Kamera gedreht wird, denn dann wird align getriggert, welche das animierte <Model> erneut auf das letzte <Target> ausrichtet.
+    
+    Eine Animation über längere Distanz impliziert unausweichliche Rundungsfehler bzw. Floatingpoint-Ungenauigkeiten die das Ergebnis verfälschen,
+    wahrscheinlich ist das der Grund, dass Animationen über längere Distanz vor dem eigentlichen <Target> aufhören. 
+
+210402-1803
+    Der Kontext des Stackframes Start::animate() blieb immer nur erhalten und deswegen konnte der Zustandswechsel, 
+    der sich innerhalb der ForEachLoop(Start::animate()) ergeben hat
+
+210402-1654
+    Der Fehler liegt daran, dass in <Reader> beim einlesen von animInit.txt die <Target>s nicht korrekt initialisiert werden
+    bzw dem Konstruktor Target(PositionModel,PositionTarget) wird immer wieder das selbe <PositionModel> übergeben!!!
+    
+    TODO:
+            Reader::readAnim() muss überarbeitet werden
+             wenn <Target>s eingelesen bzw. instanziiert werden, wird dem Konstruktor der Klasse <Traget> immer das selbe 1. Argument übergeben.
+             Die Implementierung ist falsch, weil die Liste eine verkettete Liste darstellen soll, 
+              und das 1. Argument immer die Position des vorletzten <Model>s beschreiben muss.
+
+210402-1614
+    Die Ausgabe zeigt, dass ein falscher Wert in der Bedingung genutzt wird
+
+210402-1420
+    <anim.focussedTarget> zeigt auf das angenommene <Model> nach dem das <Target> erreicht wurde.
+    TODO: entspr. muss jetzt das Model Anim.getModel() auf das neue <Target ausgerichtet werden.
+
+210402-1219
+    DONE:   Die Animation erfolgt von Punkt <StartpunktModel> in Richtung <Target> und stopt bei <Target>
+    TODO:   Nachdem die Bewegung zu Target beendet wurde muss getriggert werden, dass <anim.focussedTarget> auf das nächste <Target> zeigen soll
+
+210402-1121
+    TODO:   Jetzt sollte die Animation kontrolliert erfolgen
+                also zuerst sollte implmentiert werden, dass der hellblaue Cube sich solange bewegt, bis er sein Ziel erreicht hat
+                 =>  <Model> bewget sich nach <Target>
+                     Target::totalNrSteps zwischen <Model> und <Target> muss ermittlet werden;
+                        Dazu muss der Abstand zwischen <Model> und <Target> ermittelt werden
+                        Und der Wert muss durch die Länge eines Schritts dividiert werden, um die Anzahl zu tätigender Schritte zu berechnen
+                     <Model> darf erst bewegt werden, wenn  (Target::stepsDone < Target::totalNrSteps)  zutrifft.
+                     Dann wird der Schritt gegangen und Target::stepsDone inkrementiert.
+
+210401-2051
+    Nachem das Ziel erreicht wurde und das anmierte <Model> sich neu ausrichtet nachdem eine Rotation erfolgt,
+    ist das nur richtig, weil bei jeder Kameradrehung wird <Modle> auf ihr <Target> ausgerichtet, 
+    wenn das animierte <Model> sein <Target> schon erreicht hat, seine Richtung trotzdem beibehält, 
+    ist es logisch dass nach einer Kameradrehung das <Model> auf das hinter dem <Model> liegende <Target> ausrichtet.
+
+
+210401-1845
+    Ich habe 
+                Target(std::vector<float>targetOfsPos,std::vector<float>targetsPos);
+        zu
+                Target(std::vector<float>targetOfsPos,Model*target);
+        geändert
+    Somit orientiert sich <Target> über eine Referenz auf <Model> und verfügt nicht mehr über die Koordinate als Information.
+
+210401-1736
+    Laut animInit.txt soll sich der hellblaue Würfel "cubeB" auf "Monkey" zu bewegen und das Resultat überzeugt,
+    bis die Kamera gedreht wird, dann verhält sich das Animations-System inkonsistent.
+
+210321-1920
+    Die passende Stelle im Code ist gefunden -> rotateCam()
+    <Anim.targets> werden entspr. transformiert/rotiert
+    TODO:   <Model.alignment> müssen noch transformiert werden, 
+            dass Vektor <f> auf entspr. <*focussedTarget> zeigt und die übrige nVektoren orthogonal zu <f> stehen.
+
+210321-1620
+    Zuerst müssen die passenden Stellen im Code gefunden werden, wo <Anim.targets> invertiert zur Kamera transformiert wird.
+    <Anim.targets> müssen so transformiert werden, wie jedes <Model> auch in rotateCam(const float alpha,const char axis,std::vector<Model>*modelListArg) transformiert wird.
+    Selbstverständlich müssen auch die antspr. <Model.alignment> an die neuen Orte der <Anim.targets> zeigen gelassen werden.
+
+210321-1236
+    Die <Targets> der Animation müssen bei <KameraRotation> auch transformiert/rotiert werden.
+    Nur so wird sich der Würfel bzw. der Kegel auch nach Kameradrehung glaubhaft fortbewgen.
+    
+    Weil die Kamera nicht ihre Position verlässt/verändert, 
+     sondern die Welt sich entspr. invers der Kamera-Bewegung/Drehung anpasst,
+     müssen auch entspr. <Anim.targets> angepasst werden, damit es den Eindruck nicht verliert, dass sich die Kamera und nicht die Welt bewegt.
+     
+     und entspr. <Model.alignment>s müssen neu ausgerichtet werden
+     
+     Baustelle Start.cpp/line98,124
+     
+210320-0949
+    Die beiden <Model>s werden so bewegt, weil ihre <alignment>-Vektoren sich noch im Initialzustand befinden.
+    <Start> line 42
+    
+    Um das übersichtlich zu gestalten kann eine Funktion angelegt werden:
+        align(Model*m,std::vector<float>*focusTo)
+
+210319-2014
+    Zuerst sollte der Initialisierungs-Prozess der Animationen fertig implementiert werden,
+    darunter fällt sowohl das Einlesen der init-Daten, als auch das vorbereiten der Strukturen
+    und darunter fällt auch das ausrichten/anpassen der <Model.alignment>-Vektoren.
+    Denn Start::animtion() muss sich darauf verlassen können, dass <Model.alignment> korrekt definiert ist.
+    Also müssen die <Model.alignment>-Vektoren nach Reader::readAnim() aber vor Start::animation() definiert werden.
+    
+
+210318-1856
+    <Animation.focussedTarget> zeigt permanent auf NULL
+    Deswegen resultiert der SegFault wenn man die <targets> iteriert
+    
+
+210316-1530
+    Zuerst müssen die Targets eingelesen und in entspr. <Anim> abgelegt werden
+
+210315-1959
+    void Reader::readAnim() prüft jetzt auch ob das für Anim verwendete <Model> in <modelList> existiert und wenn nicht, wird dieses <Anim> ignoriert.
+
+210315-1909
+    Es können jetzt pro <Anim> mehrere Targets eingelesen/geführt werden.
+    Damit lässt sich ein/e Rundkurs/Animation von zu erreichenden <Targets> realisieren.
+    Es muss nur veranlasst werden, dass unter Start::animate() - Wenn ein <Target> erreicht wurde muss <Model.alignment> auf das nächste <Target> ausgerichtet werden.
+                                                               - UND der 1. Parameter pro Anim-Datensatz sollte auch validiert werden, ob er existiert, ansonsten 
+                                                                 würde an entspr. Anim() ein Nullpointer übergeben werden.
+
+210315-1900
+    CHECK   Die <Target>s werden korrekt zu entspr. <Model>s in <Anim>s eingetragen/referenziert.
+
+210315-1830
+    NOTE    Die <directions> der <Model>s für die Animationen existieren nicht mehr statisch in einer Sequenz in <Start>,
+            sondern jedes <Model> kennt seine <direction>.
+            
+            
+    
+210314-1826
+    Es gibt eine animationInit.txt
+        ModelTransformation:    Position A,B
+                                Model bewegt sich zu A und danach zu B und dann wieder zu A und der Kreis schließt sich
+                                
+                                Dazu bedarf es fürs erste den Informationen zu den zu modifizierenden <Model>s und den Vektoren A und B des Raums.
+                                
+                                zuerst wird sceneInit.txt eingelesen/verarbeitet und Start::modelList beschrieben.
+                                Danach wird aus Start() die Funktion 
+                                  Reader::readAnim(und es wird ein Pointer auf die *animsList[] und ein Pointer auf die Model Start::getModel() übergeben)aufgerufen
+                                  
+        m:"modelname";a:(5,15,960);b:(5,30,1100)
+                                
+
+210308-1342
+    Es müssen die Funktionen aus <Start> gelöst werden
+                  \
+                  glColor3f()       //line 49(in main),207(in displayCallback)
+                  glVertex2i()      //line 208(in displayCallback)
+                  
+    Von displayCallback() kann 
+    displayCallback() könnte so arangiert werden:
+        void displayCallback() {
+            glutPostRedisplay();    
+            glClearColor (1,1,1,0);
+            glClear (GL_COLOR_BUFFER_BIT);
+            glBegin (GL_POINTS);
+
+            graphicsSetup()     /* Prozedur zur Abbildung der für den grafischen Prozess veratwortlichen Instruktionen,
+                                 * damit sie getrennt von der systemischen Anbindung existieren und 
+                                 * ohne Probleme ausgetauscht werden können.
+                                 */
+            
+            glEnd();
+            glutSwapBuffers();
+            
+            usleep(35000);
+            
+            if (!showFps) return;
+            
+            // NOTE to count FPS
+            frame++;
+            currentTime=glutGet(GLUT_ELAPSED_TIME);
+            if (currentTime - timebase > 5000) {
+                printf("FPS:%4.2f\n", frame*1000.0/(currentTime-timebase));
+                timebase = currentTime;
+                frame = 0;
+            }
+            // NOTE to count FPS
+        }
+    
+210308-0502
+    Eine <Anweisung> zur Abbildung einer 
+    linearen Bewegung(von A nach B und zurück) impliziert die Punktkoodinaten A,B.
+    Wobei diese Punktkoodinaten A,B bei jeder Kamerabewegung/-rotation genauso wie alle <Model>s aktualisiert werden müssen.
+    Im Idealfall wird entspr. <Model.alignment> so ausgerichtet, 
+    dass die Richtungsänderung durch änderung des <direction>-Parameters von Transformation::move geändert  werden kann.
+    Somit
+
+210307-2026
+        Wie die Szene bestehend aus den <Model>s mittels der sceneInit.txt gestaltbar gemacht wurde,
+        sollten nun auch auf ähnlicher Weise Animationen der geladenen <Model>s gestaltbar gemacht werden.
+        
+        -> also Bedingte Zustandswechsel
+            <Model.pos> wird Transformation::move(*Model,direction,speed) verändert
+            
+        -> Also sollte die (zB.) animationInit.txt erst nach sceneInit.txt geladen/interpretiert werden.
+            Die geladene/interpretierte animationInit.txt sollte in Form einer <AnweisungsListe> übernommen werden.
+             Und diese <AnweisungsListe> wird bei animate()-Call iteriert und entspr. <Anweisung> wird auf entspr. <Model> angewendet.
+              Dazu wird eine neue Klasse <Anweisung> gebraucht. (oder <Instruction>)
+              Eine <Anweisung> muss wissen für welches <Model> oder welche <Model>s sie gilt
+              Eine <Anweisung> muss wissen welche Eigenschaft des <Model>s WANN und WIE zu verändern ist
+
+210307-2026
+    FPS-print kann man jetzt mit Programmcall-Argument "fps" ein-/ausschalten
+
+210306-1236
+    NOTE:   Vielleicht müssen die Richtungsvektoren <moveDirectionX>,<moveDirectionY> und <moveDirectionZ> auch 4x4 -Matrizen entspr.
+            nein -> es folgen die selben Werte
+
+210305-1900
+    NOTE
+    Es ist geschafft, die Kamera lässt sich bewegen,
+    zu bemängeln ist nur, dass die Steuerung zwar proportional/inertial/zueinander konsistent ist,
+    aber das <alignment(bzw. die 3 Richtungsvektoren)> -an welchem/n sich die Steuerung richtet- nicht korrekt mit der Kameradrehung rotiert wird.
+    soll heißen:    links ist nach Kameradrehung zwar noch genaugegenüber von rechts, aber es ist nicht mehr auf die linke Bildschirmseite gerichtet.
+
+210305-1713
+    NOTE
+    Die 3 Richtungsvektoren sollten sich mit Transformation::rotatePoint entspr. der Kamerabewegung mitrotieren lassen.
+    Dazu musste die Sichtbarkeit von Transformation::rotatePoint auf public geändert werden.
+
+210304-2027
+    Es gibt pro Bewegungsrichtung einen Richtungsvektor:    l   ,   r   ,   t   ,    d   ,   f   ,   b
+    welche initiale Werte tragen:                       (-1,0,0),(1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)
+    
+                                                            →       →       →
+    ...Aber eigentlich werden nur 3 Vektoren benötigt:      x       y       z
+    welche initiale Werte tragen:                        (1,0,0),(0,1,0),(0,0,1)
+    
+    Es gibt pro Bewegungsrichtung einen Richtungsvektor:    l   ,   r   ,   t   ,   d   ,   f   ,   b
+    
+                                                            →       →       →       →       →       →
+                                                           -x   ,   x   ,   y   ,  -y   ,  -z   ,   z
+   
+210304-1550
+    Das Konzept in der Theorie mit C4D ausprobieren
+    Kameraobjekt
+    Würfel[<Model>]
+    <camAlignment>
+
+210304-0826 (Drüber nachdenken)
+    TODO:       Die KameraBewegung könnte auch mittels Offset realisiert werden.
+                Durch die Verwendung eines Offsetts würden die Schreibprozesse für jede <Model.pos> gespart werden
+                
+                Somit hätte die Kamera nicht nur ein <camAlignment>,
+                sondern auch ein <camPosition>.
+                <camPosition> wird bei der Abbildung zu jeder <Model.pos> hinzu addiert.
+                relativ zu <camAlignment> wird <camPosition> bei KameraBewegung verändert.
+                
+                !!! Nachwievor muss der Vektor <camAlignment> bei Kameradrehung aber logischerweise auch rotiert werden !!!
+                
+    NOTE:       Das Offset darf erst am Ende hinzuaddiert werden, wenn die Punktkoordinate gezeichnet wird.
+                Also in Projection::map (Model*) in den Argumenten der bresenline-Aufrufe:
+                    Aus:    bresenline( mappedPointA[0]             , mappedPointA[1]               , mappedPointB[0]             ,
+                                        mappedPointB[1]             , absCoordA[2]                  , (absCoordB[2]              -   absCoordA[2]             ));
+                    
+                    wird:   bresenline( mappedPointA[0]+camOffset[0], mappedPointA[1]+camOffset[1]  , mappedPointB[0]+camOffset[0],
+                                        mappedPointB[1]+camOffset[1], absCoordA[2]+camOffset[2]     , (absCoordB[2]+camOffset[2] -   absCoordA[2]+camOffset[2]));
+
+210303-2052
+    TODO:       Zuerst muss sichergestellt sein, dass <camAlignment> entspr. einer Kamera-Drehung (void Start::rotateCam(alpha,axis,modelList)) zu jedem 
+                Zeitpunkt angepasst wird.
+                Das kann unter Umständen realisiert werden mit Transformation::rotatePoint(alpha,axis,pnt,ret)
+                unter Umständen weil:   Somit jeder Spaltenvektor(oder Zeilenvektor) von <camAlignment> separat mit rotMat multipliziert und mit dem Ergebnis 
+                                        überschrieben werden muss.
+
+210303-1105
+    
+    Angefangen in Start.cpp(line 88)!!!
+    
+    TODO:       Die Kamera durch Szene bewegen lassen:
+                    -Das versuchen zu realisieren, indem -ähnlich wie bei Kameradrehung- nicht die Kamera versetzt wird, sondern alles andere.
+                    -Es muss eine KameraOrientierung/-Ausrichtung(Vektor [x,y,z]) geben, um auch nach einer Kameradrehung alles andere relativ zur KameraPosition/- 
+                     Ausrichtung und zur Bewegung entspr. korrekt zu verschieben (ähnlich wie das Zusammenwirken von <Model::alignment[]> und 
+                     <Transformation::move()>).
+                     
+                     std::vector<std::vector<float>>camAlignment(4);
+                     Für jeden Schritt der Kamera, 
+                     müssen alle <Model>s der Szene relativ zu camAlignment entgegengesetzt der KameraBewegung, um eine Schrittlänge verschoben werden.
+                    
+                    TODO:   Es fehlt ein <alignment> für die Kamera
+                            std::vector<std::vector<float>>alignment;
+                            camAlignment[0].resize(4);camAlignment[0]={1,0,0,0};
+                            camAlignment[1].resize(4);camAlignment[1]={0,1,0,0};
+                            camAlignment[2].resize(4);camAlignment[2]={0,0,1,0};
+                            camAlignment[3].resize(4);camAlignment[3]={0,0,0,1};      //Wobei der letzte Vektor trivial ist
+                            
+                            <camAlignment> wird für die Bewegung genutzt
+                            
+                    zB. Kamera bewegt sich nach vorne um Schrittweite 0.5, entspr. müssen alle <Model>s entlang der Z-Achse näher in Richtung Kamera versetzt werden.
+                    for (m :modelList) {
+                        m.pos[0]+=camAlignment[2][0]*(0.5);
+                        m.pos[1]+=camAlignment[2][1]*(0.5);
+                        m.pos[2]+=camAlignment[2][2]*(0.5);
+                    }
+                    //Wie bei Transformation::move() zum Bewegen der <Model>s, nur dass sich hierbei die <Model>s relativ zur Kameraausrichtung bewegen
+
+210301-2105
+    SOLVED:     Die Animationen funktionieren auch.
+    SOLVED:     Es funktioniert dass aus "sceneInit.txt" die <Model>s der Szene entspr. geladen, positioniert, rotiert, eingefärbt werden.
+
+210301-1906
+    NOTE:       Indem man die Reader::readData mittels einer Instanz von <Reader> aufruft, nicht direkt funktioniert das generieren eines <Model>s
+    NOTE:       In diesem Projekt wird ein Konzept entwickelt, um eine ganze Szene aus einer Datei zu laden.
+                In Start wird erstmal nur die Szene aus sceneInit.txt gelesen und danach das Programm beendet.
+
+210226-1533
+    TODO:       Zuerst soll eine statische Szene geladen werden ohne animate()!!!
+
+210225-2157
+    DONE:       Die Segmente des rote beweglichen Zylinders wurden in der vertikalen vermehrt,
+                um die Ergebnisse der Interpolation des Z-Bufferings bei dem <Model> zu verbessern.
+
+210225-1541
+    NOTE:       animate() könnte so realisiert werden:
+             (TODO) 9 der Animationen lassen sich automatisiert realisieren mit:    isInFrustum(), Model{<Richtung>}
+                    jedes <Model> impliziert sowohl Information zur Rotation (wenn <Model> nicht rotiert sind =0),
+                                                           als auch Richtung (wenn <Model> nicht linear bewegt ist =0)
+
+210224-1614
+    TODO:       Scene-Data
+                    Diese Datei wird am Anfang eingelesen.
+                    Also sollte das eine Kompetenz von <Reader> sein.
+                    Dann übernimmt <Reader> die Aufgabe von Start::szeneInit() vollständig, was somit nicht mehr statisch implementiert sein muss und 
+                    wird von außen veränderbar/anpassbar.
+                    
+                    Diese Datei existiert exklusiv und beschreibt:
+                        die <colorList> mit ihren Einträgen, 
+                        die zu ladenden <Model>s, 
+                        deren veränderte Attribute,
+                        
+                        -> Also wird <Reader> erweitert um die Methoden:
+                            void readData(std::vector<Model>*modelList,std::vector<struct Color>*colorList)
+                                zuerst wird die colorList eingelesen(schon direkt an korrekte Adresse von Start::colorList).
+                                danach werden die <Model>s nach <modelList> eingelesen und entspr. definiert.
+                        
+    TODO:       Animate-Data
+                    Im weiteren Verlauf sollte auch die Methode animate() ausgelagert werden, 
+                    so dass diese Logik interpretiert und nicht mehr statischem Kontext entspr.
+                    
+                    Aber erstmal sollte dafür gesorgt werden, dass Start::szeneInit() durch eine eingelesene/interpretierte Scene-Data abgelöst wird!!!
+    
+210223-1957
+    CHECK:  <Model.color> als Pointer realisieren, eine Struktur aller Farben anlegen und <Model.pointer*> auf Elemente dieser Struktur referenzieren lassen.
+            <Model::Color.isColored> rausnehmen NICHT!!!
+        
+210223-1017
+    TODO:
+        evt. versuchen die Kamera besser zu kalibrieren, 
+            weil es scheint ein bisschen als wäre die camPos zu weit vorne wenn man nach unten/h oder oben/z schwenkt
+
+210222-1945
+    Ein Grund für den scheinbaren Programmabsturz könnte sein,
+    dass Projection::animate() in einer Schleife steckt, weil keine valide, zufällige Richtung um den Weg fortzusetzen mehr gefunden werden kann.
+
+    Die Kamera bzw. das Verhältnis scheint noch nicht richtig positioniert
+
+210206-1417
+    TODO:
+        Die Farben der <Model>s könnten indirekt über Referenzen bestimmt sein,
+        so dass die Farbe eines Models nicht explizit in jedem <Model> definiert sein muss.
+        Zu verwendende Farben werden in einer Struktur definiert und die <Model>s referenzieren entspr. darauf.
+        
+        Momentan impliziert der Projection::zBuffer[][] pro Pixel eine Color-Struktur welche ua. 3 floats enthält
+            daraus ergibt sich bei einer Auflösung von 1280x800 Pixels 12,288 Mb
+    DONE:
+        Model::toString() entfernt
+
+040221-2147
+    Further Todos:
+        - Scene-Data
+        - <Model>s um rotieren
+
+040221-1803
+    TODO:
+        versuchen zu realisieren, dass Kugeln auch an den Ebenen abprallen
+            ->  https://matheplanet.com/default3.html?call=viewtopic.php?topic=82874&ref=https%3A%2F%2Fwww.google.com%2F
+        hierzu nötig ist:
+            - Normale der Ebene     (-25.500000, 6.000000,-0.240000)+pos     (25.500000, 6.000000,-0.240000)+pos
+            
+                                    (-25.500000,-6.000000,-0.240000)+pos     (25.500000,-6.000000,-0.240000)+pos
+
+              Normalenvektor der Ebene: nE = (-25.500000+pos[0], 6.000000+pos[1],-0.240000+pos[2]) x (25.500000+pos[0],-6.000000+pos[1],-0.240000+pos[2])
+   
+030221-1316
+    SOLVED
+    Problembeschreibung:
+        Fehlverhalten tritt auf, zB. wenn rechts neben der grauen Ebene eine Art Mauer hochgezogen wird. 
+        Infolge dessen treten Fehler der Rasterisierung auf.
+        Es könnte daran liegen, dass die Mauer zu grob skalliert wurde, bzw. dass die Mauer aus zu wenigen Segmenten(nur einem) bestand.
+        Und dadurch die Interpolation bzw. die Rasterisierung der Pixel nicht 100%-ig zutrifft und daraus Abweichungen resultieren.
+        
+310121-1509
+    Über Sourcedatei nachdenken, mit der man von außen Szenen gestalten kann.
+
+290121-2141
+    Versuchen <Model> um Punkt x rotieren zu lassen
+    
+    => Punkt x muss als Ursprung angenommen werden können.
+    
+    => - eine erweiterte rotate-Funktion welche die Punkte versetzt um die Differenz des InertialsystemUrsprungs und dem absulutenUrsprung 
+                                                                    bzw. versetzt um negative InertialsystemPos (oder <Model.pos>) und multipliziert diese Gestalt.
+       
+       - Nachdem die Punktkoodinaten erweitert-rotiert wurden, wird <Model.pos> genau so rotiert.
+       
+       
+       - danach müssen alle Koordinaten um <Model.pos> reduziert werden, damit das Inertialsystem wieder existiert und folgend die getFunktion 
+         konsistent funktioniert(weil sie zu jeder PunktKoordinate jeweiligen <Model.pos>-Wert zuadiert.
+
+290121-1806
+    Die Punktkoodinate wird in <Model> von Koordinate des Inertialsystems zu Koordinate des absoluten Systems übersetzt.
+    
+290121-1744
+    Als nächstes sollte die kovertrierung von initialer Koordinate zu absoluter Koordinate nicht mehr in Projection::map passieren, 
+    sondern schon in dem getter, so dass nur noch der zurückgegebene Wert benutzt wird, das veranlässt auch, dass <pos> privat existieren kann.
+
+01.281842
+    Transformation.cpp:167:34: Fehler: »std::vector<std::vector<float> > Model::points« ist in diesem Zusammenhang »private«
+      167 |         matMul(&rotMat,4,1,4,&m->points[i],&tmpVec);
+
+01.272012
+    zuerst realisieren, dass das System bzw. Processing::map() wie gehabt funktioniert, 
+    nur dass der Zugriff auf current->points[][] nicht direkt sondern über eine getter-Funktion realisiert wird.
+    zB. anstelle    von:     current->points[<pointId>][<coord>]
+                    zu:      current->getPoint(<pointId>,<coord>)
+                    
+01.271249
+    TODO:
+        - Dafür sorgen, dass die Koordinaten der <Model>s nicht erst in <Projection::map()> von inertial zu global geandelt werden,
+          sondern dass das schon im Rahmen von <Model> geschieht, zB. in einem getter(), denn <Model> verfügt über alle dazu nötigen Informationen.
+        - <Model> um Koordinate rotieren
+        - Programm so gestalten, dass Szene mittels Config-Datei gestaltet werden kann
+          Config-Datei enthält: -einzulesende <Model>s  
+                                -an welcher Koordinate entspr. <Model> in Welt existiert
+                                -ob und wie entspr. <Model> rotiert ist
+
+01.252106
+    Es kann versucht werden die Projektion der <Model>s hierarchisch zu arrangieren.
+    So dass die <Model>s der Umgebung separat zu den restlichen <Model>s abgebildet werden.
+    Das Fehlverhalten ist verschwunden als ich <Plane> zuerst in <modelList> stehen hatte.
+    
+    Denn das Fehlverhalten könnte dadurch ausgelöst werden, 
+    dass gebufferte Werte plötzlich nicht mehr vorhanden sind bzw. überschrieben wurden.
+    
+    Es sollte auch überlegt werden, die gebufferten PixelKoordinaten der Bresenlinien der Elemente der Umgebung anders zu verwalten, 
+    bzw. die der Elemente der Umgebung gesondert zu den übrigen <Model>s zu hinterlegen. 
+    Wie auch das Prinzip der Rasterisierung dahingehend ändern, 
+    dass die PixelKoordinaten der Bresenlinien der Elemente der Umgebung zuerst separat in <zBuffer> geschrieben werden.
+
+01.25
+    Wenn die Reihenfolge der Models innerhalb der LinkedList <modelList> verändert ist (wenn graue Fläche vor rotem Zylinder in <modelList> steht), 
+    entsteht der Fehlerfall (graue Fläche wird nicht konsistent eingefärbt, sondern verliert ihre Farben in vertikaler Position, 
+    an den Stellen wo der Affe die Linke vertikale Kante/Bresenlinie der Fläche überdeckt) nicht mehr.
+        ->  Die Ursache könnte sein, dass die Information der LinienPixel der grauen Fläche zu diesem Zeitpunkt nicht mehr vorhanden sind und deswegen die 
+            Rasterisierung nicht mehr konsistent durchgeführt werden kann.
+
+01.20
+    <Sphere>s sollen an Grenzen des <Frustum>s in Richtung "Einfallswinkel == Ausfallswinkel" bewegt werden.
+    <Sphere> [Model]
+     <alignment> für Ausrichtung (!!!ÜBERPRÜFEN!!!)     := Richtungsvektor
+     <pos>                                              := Positionsvektor
+     
+    <WIDTH,HEIGHT> [Frustum]    //Vektor ist 2 dimensional => 
+
+01.12
+    Wahrscheinlich liegt der z-Buffer-Bug an einem Rundungsfehler, weil das gelbe Sphere an einer Koordinate von (0,0,990) angenommen wird
+
+05.01
+    Das zuletzt iterierte Model ist die große Gelbe Kugel.
+    Sie befindet sich am Ursprung(0,0,0).
+    Deswegen resultiert in den letzten Prints der Ausgabe immer pnt[0]==posPRE[0]
+    
+04.01
+    Die Differenz von aktueller Position zum Ursprung als Position annehmen
+
+    Die Vektoren dürfen nicht mehr innerhalb des Inertialsystems angenpommen werden:
+            Schema: Die Koordinaten werden relativ zur Position des entspr. Models abgebildet.
+            Projection::map(): Die Koordinaten der Punkte werden relativ zur Position des Models angenommen.
+            Das muss umgangen werden, denn jedes <Model> der Szene muss relativ zur  Kamera rotiert werden.
+            Die Model-Koordinaten müssen -absolut(bzw. auf Position der Kamera) abgebildet- rotiert werden!!!
+
+02.01
+    Wahrscheinlich muss nur die Position und die Ausrichtung der Models bei Kamera-Bewegung geändert werden.
+    Denn die Abbildung der Punktkoodinaten erfolgt ja in Abängigkeit zur Model-Position
+
+
+01.01
+    TODO:   Als nächstes sollte das Prinzip aus test.cpp im Projekt implementiert werden so dass
+            erstmal nichts an der Ausgabe verändert wird.
+            
+            Dann könnte mit (der anfänglichen Einheitsmatrix) <projecionMat> eine rotierende Kamera-Bewegung realisiert werden.
+
+    TODO:   unter Projection::map:
+                Die Punkte auch mit einer Projection-Matrix multiplizieren
+                Also zuerst mit projectionMat multiplizieren.
+                                            = std::vector<float>projectionMat;
+                                projecionMat={1,0,0,0,
+                                              0,1,0,0,
+                                              0,0,0,0, 
+                                              0,0,0,1};
+
+                Das sollte nichts an der Ausgabe verändern, aber dadurch dann kann eine Kameradrehung/-fortbewegung einfach umgesetzt werden
+
+29.12
+    TODO:   Framework so umgestalten, dass eine Schnittstelle existiert womit ein Pixel gefärbt wird und 
+            sich die Funktionen bresenline() und rasterization() ausschließlich darauf beziehen
+
+28.12   (UNNÖTIG-Fehler behoben)
+    TODO:   Rasterization neu realisieren/implementieren
+            Zuerst:         - Alten Rasterizor aus Sourcecode entfernen bis nur noch die Linien der Modelle gezeichnet werden.
+                            - Informationen aller durch bresenline() gezeichneter Linien-Pixel müssen jeweils als Objekt-Referenz, geordnet in eine/n Sequenz/Vektor 
+                              abgelegt werden.
+                            - Danach muss geprüft werden ob immer alle Linien-Pixel-Informationen in der/m Sequenz/Vektor stehen, auch beim überschreiten des
+                              linken Bildschirmrands.
+                              
+            Danach:         - Einen Weg konzipieren, um einen Pointer auf eine statische Objektreferenz an einen Konstuktor zu übegeben, um im Nachhinein konsistent 
+                              zu entspr. objekt referenzieren zu können. 
+                              (um mit <Start> ein statisches zBuffer-Objekt zu erzeugen und ein Pointer darauf <Projection> mitzuteilen)
+                            
+27.12
+    Die Anomalie betrifft nur die PixelLinie die ausserhalb der Bildschirmgrenze anfangen und nicht die gesamte Fläche.
+    
+    => rasterization() musst anders implementiert werden, aber die grobe/ganze Vorgehensweise/Technik kann schon beibehalten werden können.
+           Es ist nur wichtig, dass auch PixelLinie gezeichnet/gefärbt werden, welche ihren Anfang auch ausserhalb der linken Bildschrimkante haben, denn das 
+           funktioniert mit der momentaten Implementierung nicht.
+           
+    Evt. den <zBuffer> als eigenständige Klasse realisieren
+        dafür sollten zuerst sämtliche Zugriffe auf <zBuffer> geortet werden:
+
+25.12
+    Beim verlassen der rechten Bildschirmgrenze taucht hierbei keine zBuffer-ANomalie auf.
+    Daran könnte evt im Vergleich mit der linken Bildschirmgrenze die Gründe für den Fehler der Anomalie erfast werden.
+    
+        Es können zB. die Schleifen-Blöcke analyiert werden, welche horizontale-Pixelkoordinaten iterieren und 
+        worin im Körper auf <zBuffer> zugegriffen wird etc.
+
+27.03
+
+    Test:   2 Würfel die in horizontaler Richtung auf der linke Frustum-Grenze stehen und sich nur in der Tiefe unterscheiden
+    
+    Anomalie tritt nur auf wenn das überdeckende Model ausserhalb des Frustums der linken Seite steht.
+    Sobald eine Fläche die linke Frustum-Grenze durchbricht, verdeckt die Fläche nicht mehr die Model hinter ihr
+    
+    Anomalie tritt auf wenn man den roten Würfel bis ins untere 1/3tel der linken Bildschrimkante bewegt UND verdeckendes Model sich nur teilweise im Frustum befindet 
+        und die linear bewegende Kugel beobachtet.
+    Anomalie tritt auf wenn man den roten Würfel bis ins obere 1/3tel der linken Bildschrimkante bewegt UND verdeckendes Model sich nur teilweise im Frustum befindet 
+        und die linear bewegende Kugel beobachtet.
+        
+    Anomalie tritt NICHT auf wenn man den roten Würfel bis ins obere 1/3tel der rechten Bildschrimkante bewegt und die linear bewegende Kugel beobachtet
+    Anomalie tritt NICHT auf wenn man den roten Würfel bis zur 1/2te der rechten Bildschrimkante bewegt und die linear bewegende Kugel beobachtet
+    
+    Wenn Projection.h{
+            #define zFar (-10000.0)
+         }
+    Das nicht mehr so ist, kommt es immer noch zu Anomalien/fehlerhaftem Verhalten.
+    
+    Wenn Projection::Projection() {
+        camPos[2]=10;   //NOTE 1000
+    }
+    Das nicht mehr so ist, kommt es immer noch zu Anomalien/fehlerhaftem Verhalten.
+
+25.03
+
+    Orstvektor:= m->pos
+    
+    Richtungsvektor:= m->alignment  ..je nach Bewegung: 'r','l','b','f','u','d'
+
+    Normalenvektor der Ebene(FrustumLinks) berechnen
+        Stützvektor:=       ( (WIDTH/(-2)),0,0 )
+        RichtungsvektorA:=  ( (WIDTH/(-2)),(HEIGHT/2),0 )
+        RichtungsvektorB:=  ( (WIDTH/(-2)),(HEIGHT/(-2)),0 )  
+        
+        Ebenengleichung:= <Stützvektor> + r*<RichtungsvektorA> + s*<RichtungsvektorB>
+        
+        Normalenvektor:
+            x = (WIDTH/(-2)) + r*(WIDTH/(-2)) + s* (WIDTH/(-2))
+            y =      0       + r* (HEIGHT/2)  + s*(HEIGHT/(-2))
+            z =      0       + r*      0      + s*      0     )
+    
+23.03
+Start.cpp:
+    Weiter bei TODO(l83)    //unter Start::animate()
+    
+    16:05
+        Teilerfolg:     Kugel stopt an Grenze, funktionierte bei jedem Test
+        
+16.03
+Start.cpp:
+    Ein Model(sphere.txt) bewegt sich vom Ursprung aus in eine zufällige Richtung,
+    die Position wird perspektivisch abgebildet
+        transformation->matMul(&projection->transMat,4,1,4,&Model->pos,&<mappedPoint>);
+
+    die abgebldete Position wird überprüft, ob sie sich vor der Kamera/Projektionsebene befindet
+        if(mappedPointA[3]>1){
+        
+    Im Falle dessen wird die tranformierte Koordinate homogenisiert
+        <mappedPoint[0]>/=<mappedPoint[3]>;<mappedPoint[1]>/=<mappedPoint[3]>;<mappedPoint[2]>/=<mappedPoint[3]>;<mappedPoint[3]>/=<mappedPoint[3]>;
+
+
+    ....
+        if(mappedPointA[0]>(WIDTH/(-2)) && mappedPointA[0]<(WIDTH/2) && mappedPointA[1]>(HEIGHT/(-2)) && mappedPointA[1]<(HEIGHT/2)){
+            isInFrustum = true;
+            break;
+        }
+
+01.03
+    modelList.push_back-Kombination des konsistenten Ergebnis':
+    1. cubeB                    //blauer stillstehender Würfel
+        2. cube                 //roter bewegbarer Würfel
+            3. sphere           //gelbe rotierende Kugel
+
+29.02   12:00
+    Die Anordnung der <Model>s in <Start::modelList> ist entscheidend ob rasterization(ausgehend der KameraPosition) die Pixel korrekt einfärbt.
+    Entspr. optische Resultate, Schlussfolgerungen dieser unter Start::main()
+    
+    
+    
+    
+12:45
+    Das zBuffering/AbstandZurKameraMessung unterscheidet sich zwischen bresenline() und rasterization()
+
+16:10
+    Wahrscheinlich kommt es zu gelegentlichem zFighting, 
+    weil die Modelle sehr klein sind bzw. nur im Bereich von Koordinatengrößen < 0 existieren und somit Werte falsch gerundet werden bzw. in diesen Bereichen positioniert sind.
+
+15:50
+    Die Proportionen wurden jetzt ahingehend angepasst, so dass eine vernünftige Projektion geschehen kann. 
+    Aber technisch steht die Kamera sehr weit vom Ursprung entfernt und die Körper sind sehr klein.
+    
+    Es bleiben somit 2 Alternativen:
+        -Entweder man versetzt die Kamera näher an Ursprung (Dann stimmen aber sehr viele Verhältnisse nicht mehr)
+        -Oder man modelliert angepasst an entspr. Verhältnis!!!
+
+26.02   15:39
+    Die Irrtümlichkeit bestand darin, dass der Eindruck geweckt wurde, der zBuffer würde nicht funktionieren, 
+    weil dar Würfel immer weiter nach vorne verschoben wurde, ohne die Kugel zu verdecken.
+    Das lag daran, dass die Kugel sehr klein ist und sehr weit vorne steht!
+
+
+15:40
+    Ich habe die Kamera von camPos[2]=0 auf camPos[2]=10 gesetzt    und es funktioniert
+    Es wird nichts abgebildet
+    Backfaceculling funktioniert nicht
+
+15:10
+    Meine Annahme hat nicht gestimmt und es liegt an der ForLoop welche über <points> iteriert
+    Falsch:     for (int pointId=1;pointId<current->points[faceId].size();pointId++)
+    Richtig:    for (int pointId=1;pointId<current->faces[faceId].size();pointId++)
+
+25.02 14:13
+        In der ForLoop l.82 wird inkrementiert bis current->points[faceId].size(), aber <faceId> referenziert eigentlich nicht auf die Struktur <points>
+        
+        //Der SegFault resultiert daher, dass <pointId> plötzlich den Wert 4 annimmt.
+        
+        //pointId wird evt noch inkrementiert, weil der SegFault darauf schließen lässt, dass es zu inkonsistentem Verhalten führte.
+    
+    Der Programmlauf bricht ab bei:
+        1:  faceId=493  pointId=4
+        2:  faceId=494  pointId=4
+        3:  faceId=482  pointId=4
+        4:  faceId=496  pointId=4
+
+    1,2: 1 funktioniert einmal, beim 2. mal kommt SegFault, 2 beim 1. mal kommt der SegFault
+    3,4: 3 funktioniert 12 mal und beim 13. mal kommt SegFault, 4 funktioniert 16 und beim 17. mal kommt SegFault
+    5,6: funktioniert beliebig oft
+
+    Der SegFault tritt in Projection::map() auf
+
+TODO:
+    Die Kamera dynamisch implementieren
+    OriginalSource mit hiesiger Source vergleichen um noch weitere fehlende Funktionen/Funktionalitäten zu finden.
+    Rasterizor
+
+Die Linien werdne nicht korrekt gezeichnet abgebildet
+
+    Der Würfel wird groß abgebildet
+        und man kann sehen, dass die Linien richtig gezeichnet werden aber nicht alle.
+            Wenn /cube.txt geladen ist und zentral zur Kamera steht(so dass nur eine Fläche sichtbar ist) wird die untere Gerade nicht gezeichnet.
+            Wenn man den Würfel entlang der Z-Achse rotiert bleibt eben jene Gerade ungezeichnet, 
+            also wenn eine andere Gerade unten liegt wird sie gezeichnet und die sich anfangs unten befindende nicht-gezeichnete Gerade, 
+            welche jetzt woanders steht bleibt trotzdem ungezeichnet.
+            => also liegt es weder an den virtuellen 3D-Koordinaten des Models, noch an projizierten 2D-Koordinaten.
+            
+            
+            Evt weil es manchmal fälschlich als Rückfläche betrachtet wird und somit durch das Backfaceculling verhindert wird ebenjene Rückfläche gezeichnet wird.
+                Evt weil die Punkte der Flächen nicht gegen den Uhrzeigersinn miteinander verbunden wurden
+                
+                
+        --------------blödsinnige Annahme!---------------
+        
+        Es lag daran, dass in Projection::map() nach der Schleife über die Punkte zum zeichnen der Linien der Fläche, der abschließende Code nach der for-Schleife fehlte.
+        Manche Flächen schienen zwar vollständig gezeichnet, aber nur weil die fehlende Linie zu einer anderen sichtbaren Fläche gehörte, welche gezeichnet wurde.
+
+Wenn ich /sphere.txt lade 
+    und das Model drehe         stürzt das Programm mit einem SegmentationFault ab
+                                Der SegmentationFault folgt allgemein aus rotate().
+                                                                                Der SegmentationFault folgt hierbei im ForLoopHead
+                                                                                                        Der SegmentationFault folgt bei Zugriff auf m->points.size()
+                                                                                                        
+    Der Fehler liegt daran, dass das übergebene Model welches ein /sphere.txt repräsentiert eine Nullreferenz ist.
+    
+    Der Fehler ist, dass in keyboardFunc() statisch ein Model namens "cube" von getModel() gefordert wird, aber anfangs nur ein Model namens "sphere" geladen wird
+                                                                                    

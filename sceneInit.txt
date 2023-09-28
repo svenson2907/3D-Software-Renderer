@@ -1,0 +1,13 @@
+<Color>(0.6,0.6,0.6)
+<Color>(0.0,1.0,0.0)
+<Color>(1.0,0.0,0.0)
+<Model>"figureMuchMuchMoreDefined.txt";n:"figure";c:1;p:(0,-2,980);
+<Model>"figureLeftLeg.txt";n:"figureLeftLeg";p:(10,-2,995);c:0;
+<Model>"figureRightLeg.txt";n:"figureRightLeg";p:(-10,-2,975);c:0;
+<Model>"figureLeftArm.txt";n:"figureLeftArm";p:(3,3,980);c:0;
+<Model>"figureRightArm.txt";n:"figureRightArm";p:(-3,3,980);c:0;
+<Model>"sphere.txt";n:"sphereA";c:2;p:(0,-2,970);
+<Model>"sphere.txt";n:"sphereB";c:2;p:(10,-2,970);
+<Model>"sphere.txt";n:"sphereC";c:2;p:(-15,-2,970);
+<Model>"sphere.txt";n:"sphereD";c:2;p:(3,-2,965);
+<Model>"plane.txt";n:"plane";c:0;p:(0,-5,970);
